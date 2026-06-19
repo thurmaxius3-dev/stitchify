@@ -331,7 +331,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
   },
 
   deleteProject: (projectId) => {
-    const { deletedProjectIds } = get();
+    const deletedProjectIds = get().deletedProjectIds ?? [];
     if (deletedProjectIds.includes(projectId)) return;
     const next = deletedProjectIds.concat(projectId);
     saveDeletedProjectIds(next);
@@ -368,5 +368,6 @@ export function totalStitches(s: StitchifyState): number {
 }
 
 export function visibleProjects(s: StitchifyState): MockProject[] {
-  return MOCK_PROJECTS.filter((p) => !s.deletedProjectIds.includes(p.id));
+  const deleted = s.deletedProjectIds ?? [];
+  return MOCK_PROJECTS.filter((p) => !deleted.includes(p.id));
 }

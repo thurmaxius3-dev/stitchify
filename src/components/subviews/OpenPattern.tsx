@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { useStore, DMC_LIBRARY, visibleProjects } from '../../store';
-import { PatternEngine } from '../../lib/patternEngine';
+import { useEffect, useMemo, useRef } from 'react';
+import { useStore, DMC_LIBRARY, MOCK_PROJECTS } from '../../store';import { PatternEngine } from '../../lib/patternEngine';
 import type { MockProject } from '../../lib/types';
 import SubviewHeader from './SubviewHeader';
 
@@ -43,10 +42,13 @@ function TrashIcon() {
 }
 
 export default function OpenPattern() {
-  const projects = useStore(visibleProjects);
+  const deletedProjectIds = useStore((s) => s.deletedProjectIds);
   const loadProject = useStore((s) => s.loadProject);
   const deleteProject = useStore((s) => s.deleteProject);
-
+  const projects = useMemo(
+    () => MOCK_PROJECTS.filter((p) => !deletedProjectIds.includes(p.id)),
+    [deletedProjectIds]
+  );
   return (
     <section className="subview">
       <SubviewHeader title="Open pattern" />
