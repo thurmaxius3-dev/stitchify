@@ -314,10 +314,19 @@ export class CanvasRenderer {
       ctx.arc(cx, cy, cell * 0.22 * scale, 0, Math.PI * 2);
       ctx.stroke();
     } else if (type === 'x') {
-      ctx.font = `600 ${fontSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('\u00d7', cx, cy);
+      const inset = cell * 0.14 * scale;
+      const x0 = px + inset;
+      const y0 = py + inset;
+      const x1 = px + cell - inset;
+      const y1 = py + cell - inset;
+      ctx.lineWidth = Math.max(1.5, cell * 0.14) * scale;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.moveTo(x1, y0);
+      ctx.lineTo(x0, y1);
+      ctx.stroke();
     } else if (type === 'glyph') {
       ctx.font = `600 ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';

@@ -5,14 +5,50 @@ import type { Pattern } from '../../lib/types';
 import { ImageIcon } from '../icons';
 import SubviewHeader from './SubviewHeader';
 
+const STITCH_MIN = 10;
+const STITCH_MAX = 2000;
+
+function parseStitchInput(value: string): number | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function commitDimensions(
+  widthText: string,
+  heightText: string,
+  aspect: number | null,
+  driver: 'width' | 'height'
+): { widthText: string; heightText: string } {
+  const parsedW = parseStitchInput(widthText);
+  const parsedH = parseStitchInput(heightText);
+
+  if (aspect != null) {
+    const seed = driver === 'width' ? parsedW : parsedH;
+    if (seed == null || seed <= 0) {
+      return { widthText, heightText };
+    }
+    const dims =
+      driver === 'width'
+        ? PatternEngine.stitchDimensionsFromWidth(seed, aspect)
+        : PatternEngine.stitchDimensionsFromHeight(seed, aspect);
+    return { widthText: String(dims.width), heightText: String(dims.height) };
+  }
+
+  const width = Math.max(STITCH_MIN, Math.min(STITCH_MAX, parsedW ?? STITCH_MIN));
+  const height = Math.max(STITCH_MIN, Math.min(STITCH_MAX, parsedH ?? STITCH_MIN));
+  return { widthText: String(width), heightText: String(height) };
+}
+
 export default function NewPattern() {
   const applyPattern = useStore((s) => s.applyPattern);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [aspect, setAspect] = useState<number | null>(null);
-  const [width, setWidth] = useState(100);
-  const [height, setHeight] = useState(100);
+  const [widthText, setWidthText] = useState('100');
+  const [heightText, setHeightText] = useState('100');
   const [maxColors, setMaxColors] = useState(50);
   const [dithering, setDithering] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -25,11 +61,12 @@ export default function NewPattern() {
       try {
         const img = await PatternEngine.loadImage(src);
         const ratio = img.naturalWidth / img.naturalHeight;
-        const dims = PatternEngine.stitchDimensionsFromWidth(width, ratio);
+        const seed = parseStitchInput(widthText) ?? 100;
+        const dims = PatternEngine.stitchDimensionsFromWidth(seed, ratio);
         setSourceImage(src);
         setAspect(ratio);
-        setWidth(dims.width);
-        setHeight(dims.height);
+        setWidthText(String(dims.width));
+        setHeightText(String(dims.height));
         setStatus(null);
       } catch {
         setStatus({ msg: 'Could not load image. Try a different file.', error: true });
@@ -38,32 +75,44 @@ export default function NewPattern() {
     reader.readAsDataURL(file);
   };
 
-  const onWidthChange = (raw: number) => {
-    if (!raw) return;
-    if (aspect == null) {
-      setWidth(raw);
-      return;
-    }
-    const dims = PatternEngine.stitchDimensionsFromWidth(raw, aspect);
-    setWidth(dims.width);
-    setHeight(dims.height);
+  const onWidthInput = (value: string) => {
+    setWidthText(value);
+    const raw = parseStitchInput(value);
+    if (raw == null || raw <= 0 || aspect == null) return;
+    setHeightText(String(Math.round(raw / aspect)));
   };
 
-  const onHeightChange = (raw: number) => {
-    if (!raw) return;
-    if (aspect == null) {
-      setHeight(raw);
-      return;
-    }
-    const dims = PatternEngine.stitchDimensionsFromHeight(raw, aspect);
-    setWidth(dims.width);
-    setHeight(dims.height);
+  const onHeightInput = (value: string) => {
+    setHeightText(value);
+    const raw = parseStitchInput(value);
+    if (raw == null || raw <= 0 || aspect == null) return;
+    setWidthText(String(Math.round(raw * aspect)));
+  };
+
+  const onWidthBlur = () => {
+    const next = commitDimensions(widthText, heightText, aspect, 'width');
+    setWidthText(next.widthText);
+    setHeightText(next.heightText);
+  };
+
+  const onHeightBlur = () => {
+    const next = commitDimensions(widthText, heightText, aspect, 'height');
+    setWidthText(next.widthText);
+    setHeightText(next.heightText);
   };
 
   const convert = async () => {
     if (!sourceImage || converting) return;
-    if (!width || !height || width < 10 || height < 10) {
-      setStatus({ msg: 'Enter valid dimensions (10\u20132000 stitches).', error: true });
+
+    const committed = commitDimensions(widthText, heightText, aspect, 'width');
+    setWidthText(committed.widthText);
+    setHeightText(committed.heightText);
+
+    const width = parseStitchInput(committed.widthText);
+    const height = parseStitchInput(committed.heightText);
+
+    if (width == null || height == null || width < STITCH_MIN || height < STITCH_MIN) {
+      setStatus({ msg: `Enter valid dimensions (${STITCH_MIN}\u2013${STITCH_MAX} stitches).`, error: true });
       return;
     }
     if (!maxColors || maxColors < 2 || maxColors > 100) {
@@ -86,7 +135,6 @@ export default function NewPattern() {
       setConverting(false);
     }
   };
-
   return (
     <section className="subview">
       <SubviewHeader
@@ -127,11 +175,23 @@ export default function NewPattern() {
         <div className="grid grid-cols-2 gap-0 border-b border-gray-200">
           <div className="calc-field !border-b-0">
             <label>Width (stitches)</label>
-            <input type="number" min={10} max={2000} value={width} onChange={(e) => onWidthChange(parseInt(e.target.value, 10))} />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={widthText}
+              onChange={(e) => onWidthInput(e.target.value)}
+              onBlur={onWidthBlur}
+            />
           </div>
           <div className="calc-field !border-b-0">
             <label>Height (stitches)</label>
-            <input type="number" min={10} max={2000} value={height} onChange={(e) => onHeightChange(parseInt(e.target.value, 10))} />
+            <input
+              type="number"
+              inputMode="numeric"
+              value={heightText}
+              onChange={(e) => onHeightInput(e.target.value)}
+              onBlur={onHeightBlur}
+            />
           </div>
           {aspect != null && (
             <p className="text-xs text-teal-700 bg-teal-50 px-4 py-2 col-span-2 border-b border-gray-200">

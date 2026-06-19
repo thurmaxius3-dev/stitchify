@@ -17,6 +17,22 @@ import type {
 
 export const DMC_LIBRARY = DMC_COLORS;
 const MAX_UNDO_HISTORY = 20;
+const DELETED_PROJECTS_KEY = 'stitchify-deleted-project-ids';
+
+function loadDeletedProjectIds(): string[] {
+  try {
+    const raw = localStorage.getItem(DELETED_PROJECTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDeletedProjectIds(ids: string[]): void {
+  localStorage.setItem(DELETED_PROJECTS_KEY, JSON.stringify(ids));
+}
 
 export const MOCK_PROJECTS: MockProject[] = [
   {
@@ -104,6 +120,9 @@ export interface StitchifyState {
   newPatternDithering: boolean;
   isConverting: boolean;
 
+  // Saved patterns list (Open pattern)
+  deletedProjectIds: string[];
+
   // Actions
   set: (patch: Partial<StitchifyState>) => void;
   setTab: (tab: TabId) => void;
@@ -126,6 +145,7 @@ export interface StitchifyState {
   setZoom: (z: number) => void;
   applyPattern: (pattern: Pattern, meta: Partial<ActiveProject>) => void;
   loadProject: (projectId: string) => void;
+  deleteProject: (projectId: string) => void;
   openSubview: (name: SubviewId) => void;
   closeSubview: () => void;
 }
@@ -176,6 +196,8 @@ export const useStore = create<StitchifyState>((set, get) => ({
   newPatternMaxColors: 50,
   newPatternDithering: false,
   isConverting: false,
+
+  deletedProjectIds: loadDeletedProjectIds(),
 
   set: (patch) => set(patch),
 
@@ -293,7 +315,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
   loadProject: (projectId) => {
     const project = MOCK_PROJECTS.find((p) => p.id === projectId);
-    if (!project) return;
+    if (!project || get().deletedProjectIds.includes(projectId)) return;
     const pattern = PatternEngine.generateProceduralPattern(
       project.width,
       project.height,
@@ -306,6 +328,14 @@ export const useStore = create<StitchifyState>((set, get) => ({
       stitched: project.stitched,
       total: project.total,
     });
+  },
+
+  deleteProject: (projectId) => {
+    const { deletedProjectIds } = get();
+    if (deletedProjectIds.includes(projectId)) return;
+    const next = deletedProjectIds.concat(projectId);
+    saveDeletedProjectIds(next);
+    set({ deletedProjectIds: next });
   },
 
   openSubview: (name) => set({ activeSubview: name, leftDrawerOpen: false }),
@@ -335,4 +365,8 @@ function applyDone(
 
 export function totalStitches(s: StitchifyState): number {
   return s.pattern.width * s.pattern.height;
+}
+
+export function visibleProjects(s: StitchifyState): MockProject[] {
+  return MOCK_PROJECTS.filter((p) => !s.deletedProjectIds.includes(p.id));
 }

@@ -304,20 +304,44 @@ body {
 
 .project-row {
   display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s;
+}
+.project-row:hover { background: #f9fafb; }
+
+.project-row-main {
+  flex: 1;
+  display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  border-bottom: 1px solid #f3f4f6;
   cursor: pointer;
   transition: background-color 0.15s;
   width: 100%;
   text-align: left;
   background: transparent;
-  border-top: none;
-  border-left: none;
-  border-right: none;
+  border: none;
 }
-.project-row:hover { background: #f9fafb; }
+.project-row-main:hover { background: transparent; }
+
+.project-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3rem;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  border-left: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+.project-delete-btn:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
 
 .project-thumb {
   width: 4rem;
