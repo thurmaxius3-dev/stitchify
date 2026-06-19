@@ -471,4 +471,6 @@ export const DMC_COLORS: DmcColor[] = [
   { id: '3866', code: 'DMC 3866', name: 'Mocha Brown-ULT VY LT', hex: '#F0E6D7' },
 ];
 
+export const DMC_COLOR_COUNT = DMC_COLORS.length;
+
 export default DMC_COLORS;

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { DMC_COLOR_COUNT } from '../../lib/dmcColors';
 import { useStore, DMC_LIBRARY } from '../../store';
 import { PatternEngine } from '../../lib/patternEngine';
 import type { Pattern } from '../../lib/types';
@@ -115,8 +116,8 @@ export default function NewPattern() {
       setStatus({ msg: `Enter valid dimensions (${STITCH_MIN}\u2013${STITCH_MAX} stitches).`, error: true });
       return;
     }
-    if (!maxColors || maxColors < 2 || maxColors > 100) {
-      setStatus({ msg: 'Max colors must be between 2 and 100.', error: true });
+    if (!maxColors || maxColors < 2 || maxColors > DMC_COLOR_COUNT) {
+      setStatus({ msg: `Max colors must be between 2 and ${DMC_COLOR_COUNT}.`, error: true });
       return;
     }
     setConverting(true);
@@ -199,8 +200,13 @@ export default function NewPattern() {
             </p>
           )}
           <div className="calc-field !border-b-0 col-span-2">
-            <label>Max colors</label>
-            <input type="number" min={2} max={100} value={maxColors} onChange={(e) => setMaxColors(parseInt(e.target.value, 10) || 2)} />
+            <label>Max colors (up to {DMC_COLOR_COUNT} DMC)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={maxColors}
+              onChange={(e) => setMaxColors(parseInt(e.target.value, 10) || 2)}
+            />
           </div>
         </div>
         <label className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 cursor-pointer">
