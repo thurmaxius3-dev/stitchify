@@ -158,6 +158,7 @@ export interface StitchifyState {
   setCloudSync: (enabled: boolean) => void;
 }
 
+// Minimal blank pattern — just a placeholder until a real project loads
 const defaultPattern = createDefaultPattern();
 const { palette: defaultPalette, symbolMap: defaultSymbolMap } = buildPalette(defaultPattern);
 
@@ -167,7 +168,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
   symbolMap: defaultSymbolMap,
   activeProject: {
     id: undefined,
-    name: 'Project MVP',
+    name: '',   // blank — no project loaded yet
     width: defaultPattern.width,
     height: defaultPattern.height,
     colorSystem: 'DMC',
@@ -595,6 +596,15 @@ async function bootstrap() {
 
   // Load local projects
   await store.refreshSavedProjects();
+
+  // Restore last open project
+  const lastId = await getLastOpenProjectId();
+  if (lastId) {
+    const { savedProjects } = useStore.getState();
+    if (savedProjects.find((p) => p.id === lastId)) {
+      useStore.getState().loadProject(lastId);
+    }
+  }
 
   // Restore cloud sync preference
   const cloudPref = localStorage.getItem('stitchify-cloud-sync') === '1';

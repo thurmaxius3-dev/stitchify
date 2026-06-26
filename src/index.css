@@ -437,3 +437,30 @@ body {
   cursor: pointer;
 }
 .source-dropzone img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Welcome screen buttons */
+.btn-primary {
+  padding: 0.625rem 1.25rem;
+  background: #14b8a6;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: #0f9488; }
+
+.btn-secondary {
+  padding: 0.625rem 1.25rem;
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-secondary:hover { background: #f9fafb; border-color: #9ca3af; }
