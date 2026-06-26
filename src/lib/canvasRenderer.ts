@@ -64,10 +64,14 @@ export class CanvasRenderer {
       }
     });
     this.on(this.canvas, 'wheel', (e) => this.onWheel(e), { passive: false });
-    this.on(this.canvas, 'mousedown', (e) => this.onMouseDown(e));
-    this.on(window, 'mousemove', (e) => this.onMouseMove(e));
-    this.on(window, 'mouseup', () => this.onMouseUp());
-    this.on(this.canvas, 'click', (e) => this.onCanvasClick(e));
+    // Only bind mouse events on non-touch devices
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    if (!isTouch) {
+      this.on(this.canvas, 'mousedown', (e) => this.onMouseDown(e));
+      this.on(window, 'mousemove', (e) => this.onMouseMove(e));
+      this.on(window, 'mouseup', () => this.onMouseUp());
+      this.on(this.canvas, 'click', (e) => this.onCanvasClick(e));
+    }
     this.on(this.canvas, 'touchstart', (e) => this.onTouchStart(e), { passive: true });
     this.on(this.canvas, 'touchmove', (e) => this.onTouchMove(e), { passive: false });
     this.on(this.canvas, 'touchend', (e) => this.onTouchEnd(e));
