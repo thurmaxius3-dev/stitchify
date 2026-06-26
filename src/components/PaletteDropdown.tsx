@@ -2,6 +2,15 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import type { PaletteEntry } from '../lib/types';
 
+function SearchIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+    </svg>
+  );
+}
+
 const PALETTE_SORTS = [
   { id: 'count-desc', label: 'Most stitches' },
   { id: 'count-asc', label: 'Fewest stitches' },
@@ -30,6 +39,7 @@ export default function PaletteDropdown() {
   const activeColorId = useStore((s) => s.activeColorId);
   const setActiveColor = useStore((s) => s.setActiveColor);
   const swapColor = useStore((s) => s.swapColor);
+  const openSubview = useStore((s) => s.openSubview);
   const doneStitches = useStore((s) => s.doneStitches);
   const pattern = useStore((s) => s.pattern);
   const [sortIndex, setSortIndex] = useState(0);
@@ -116,17 +126,28 @@ export default function PaletteDropdown() {
         ) : (
           <>
             <span>Colors in project</span>
-            <button
-              type="button"
-              className="palette-sort-btn"
-              onClick={() => setSortIndex((i) => (i + 1) % PALETTE_SORTS.length)}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M3 7h13M3 12h9M3 17h5M17 7v12m0 0l-3-3m3 3l3-3" />
-              </svg>
-              <span>{PALETTE_SORTS[sortIndex].label}</span>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="palette-sort-btn"
+                aria-label="Find DMC color"
+                title="Find a DMC color"
+                onClick={() => openSubview('threads-library')}
+              >
+                <SearchIcon />
+              </button>
+              <button
+                type="button"
+                className="palette-sort-btn"
+                onClick={() => setSortIndex((i) => (i + 1) % PALETTE_SORTS.length)}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M3 7h13M3 12h9M3 17h5M17 7v12m0 0l-3-3m3 3l3-3" />
+                </svg>
+                <span>{PALETTE_SORTS[sortIndex].label}</span>
+              </button>
+            </div>
           </>
         )}
       </div>
