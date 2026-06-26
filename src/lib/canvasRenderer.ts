@@ -66,7 +66,7 @@ export class CanvasRenderer {
     this.on(window, 'mousemove', (e) => this.onMouseMove(e));
     this.on(window, 'mouseup', () => this.onMouseUp());
     this.on(this.canvas, 'click', (e) => this.onCanvasClick(e));
-    this.on(this.canvas, 'touchstart', (e) => this.onTouchStart(e), { passive: false });
+    this.on(this.canvas, 'touchstart', (e) => this.onTouchStart(e), { passive: true });
     this.on(this.canvas, 'touchmove', (e) => this.onTouchMove(e), { passive: false });
     this.on(this.canvas, 'touchend', (e) => this.onTouchEnd(e));
   }
@@ -230,7 +230,6 @@ export class CanvasRenderer {
 
   onTouchStart(e) {
     if (e.touches.length === 2) {
-      e.preventDefault();
       this.pinchStartDist = this.getTouchDist(e.touches);
       this.pinchStartZoom = this.getState().zoom;
       this.touchStart = null;
@@ -239,10 +238,8 @@ export class CanvasRenderer {
       const t = e.touches[0];
       this.touchStart = { x: t.clientX, y: t.clientY };
       this.touchMoved = false;
-      this.isPanning = true;
+      this.isPanning = false; // don't start panning until we confirm movement
       this.lastPan = { x: t.clientX, y: t.clientY };
-      // Prevent the browser's default scroll/long-press so quick taps fire reliably
-      e.preventDefault();
     }
   }
 
@@ -252,12 +249,22 @@ export class CanvasRenderer {
       this.getState().setZoom(this.pinchStartZoom * (this.getTouchDist(e.touches) / this.pinchStartDist));
       this.touchStart = null;
       this.touchMoved = true;
-    } else if (e.touches.length === 1 && this.isPanning) {
+    } else if (e.touches.length === 1) {
       const dx = e.touches[0].clientX - this.lastPan.x;
       const dy = e.touches[0].clientY - this.lastPan.y;
-      if (Math.hypot(dx, dy) > 4) this.touchMoved = true;
-      this.scrollEl.scrollLeft -= dx;
-      this.scrollEl.scrollTop -= dy;
+      // Only start panning if finger moved more than 10px — gives tap room to breathe
+      if (Math.hypot(
+        e.touches[0].clientX - (this.touchStart?.x ?? e.touches[0].clientX),
+        e.touches[0].clientY - (this.touchStart?.y ?? e.touches[0].clientY)
+      ) > 10) {
+        this.touchMoved = true;
+        this.isPanning = true;
+      }
+      if (this.isPanning) {
+        e.preventDefault();
+        this.scrollEl.scrollLeft -= dx;
+        this.scrollEl.scrollTop -= dy;
+      }
       this.lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }
   }
