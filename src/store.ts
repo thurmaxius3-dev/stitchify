@@ -254,15 +254,33 @@ export const useStore = create<StitchifyState>((set, get) => ({
     const entry = undoStack[undoStack.length - 1];
     if (!entry) return;
     const i = entry.y * pattern.width + entry.x;
-    const current = doneStitches[i];
-    const nextRedo = redoStack.concat({ x: entry.x, y: entry.y, from: current, to: entry.from });
-    if (nextRedo.length > MAX_UNDO_HISTORY) nextRedo.shift();
-    doneStitches[i] = entry.from;
-    set({
-      undoStack: undoStack.slice(0, -1),
-      redoStack: nextRedo,
-      doneVersion: get().doneVersion + 1,
-    });
+
+    if (entry.kind === 'paint') {
+      const newMatrix = new Uint16Array(pattern.matrix);
+      newMatrix[i] = entry.fromColor!;
+      const newPattern = { ...pattern, matrix: newMatrix };
+      const { palette, symbolMap } = buildPalette(newPattern);
+      const nextRedo = redoStack.concat(entry);
+      if (nextRedo.length > MAX_UNDO_HISTORY) nextRedo.shift();
+      set({
+        pattern: newPattern,
+        projectPalette: palette,
+        symbolMap,
+        renderGeneration: get().renderGeneration + 1,
+        undoStack: undoStack.slice(0, -1),
+        redoStack: nextRedo,
+      });
+    } else {
+      const current = doneStitches[i];
+      const nextRedo = redoStack.concat({ x: entry.x, y: entry.y, from: current, to: entry.from, kind: 'done' });
+      if (nextRedo.length > MAX_UNDO_HISTORY) nextRedo.shift();
+      doneStitches[i] = entry.from;
+      set({
+        undoStack: undoStack.slice(0, -1),
+        redoStack: nextRedo,
+        doneVersion: get().doneVersion + 1,
+      });
+    }
     get().triggerAutoSave();
   },
 
@@ -271,15 +289,33 @@ export const useStore = create<StitchifyState>((set, get) => ({
     const entry = redoStack[redoStack.length - 1];
     if (!entry) return;
     const i = entry.y * pattern.width + entry.x;
-    const current = doneStitches[i];
-    const nextUndo = undoStack.concat({ x: entry.x, y: entry.y, from: current, to: entry.to });
-    if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
-    doneStitches[i] = entry.to;
-    set({
-      redoStack: redoStack.slice(0, -1),
-      undoStack: nextUndo,
-      doneVersion: get().doneVersion + 1,
-    });
+
+    if (entry.kind === 'paint') {
+      const newMatrix = new Uint16Array(pattern.matrix);
+      newMatrix[i] = entry.toColor!;
+      const newPattern = { ...pattern, matrix: newMatrix };
+      const { palette, symbolMap } = buildPalette(newPattern);
+      const nextUndo = undoStack.concat(entry);
+      if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
+      set({
+        pattern: newPattern,
+        projectPalette: palette,
+        symbolMap,
+        renderGeneration: get().renderGeneration + 1,
+        undoStack: nextUndo,
+        redoStack: redoStack.slice(0, -1),
+      });
+    } else {
+      const current = doneStitches[i];
+      const nextUndo = undoStack.concat({ x: entry.x, y: entry.y, from: current, to: entry.to, kind: 'done' });
+      if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
+      doneStitches[i] = entry.to;
+      set({
+        redoStack: redoStack.slice(0, -1),
+        undoStack: nextUndo,
+        doneVersion: get().doneVersion + 1,
+      });
+    }
     get().triggerAutoSave();
   },
 
@@ -289,25 +325,28 @@ export const useStore = create<StitchifyState>((set, get) => ({
   setZoom: (z) => set({ zoom: Math.min(4, Math.max(0.5, z)) }),
 
   paintCell: (x, y) => {
-    const { pattern, activeColorId, projectPalette } = get();
+    const { pattern, activeColorId, projectPalette, undoStack } = get();
     if (!activeColorId) return;
     const { width, height, matrix } = pattern;
     if (x < 0 || x >= width || y < 0 || y >= height) return;
-    // Find the DMC index for the active color
     const entry = projectPalette.find((p) => p.color.id === activeColorId);
     if (!entry) return;
     const i = y * width + x;
-    if (matrix[i] === entry.dmcIndex) return; // no change
-    // Mutate a copy of the matrix so React sees the change
+    const fromColor = matrix[i];
+    if (fromColor === entry.dmcIndex) return; // no change
     const newMatrix = new Uint16Array(matrix);
     newMatrix[i] = entry.dmcIndex;
     const newPattern = { ...pattern, matrix: newMatrix };
     const { palette, symbolMap } = buildPalette(newPattern);
+    const nextUndo = undoStack.concat({ x, y, from: 0, to: 0, kind: 'paint', fromColor, toColor: entry.dmcIndex });
+    if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
     set({
       pattern: newPattern,
       projectPalette: palette,
       symbolMap,
       renderGeneration: get().renderGeneration + 1,
+      undoStack: nextUndo,
+      redoStack: [],
     });
     get().triggerAutoSave();
   },
@@ -417,7 +456,7 @@ function applyDone(
   const from = doneStitches[i];
   const to = done ? 1 : 0;
   if (from === to) return;
-  const nextUndo = undoStack.concat({ x, y, from, to });
+  const nextUndo = undoStack.concat({ x, y, from, to, kind: 'done' });
   if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
   doneStitches[i] = to;
   set({ undoStack: nextUndo, redoStack: [], doneVersion: get().doneVersion + 1 });

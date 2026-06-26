@@ -65,4 +65,7 @@ export interface HistoryEntry {
   y: number;
   from: number;
   to: number;
+  kind: 'done' | 'paint'; // 'done' = stitch toggle, 'paint' = color change
+  fromColor?: number;      // DMC index before paint
+  toColor?: number;        // DMC index after paint
 }

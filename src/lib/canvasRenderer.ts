@@ -32,6 +32,8 @@ export class CanvasRenderer {
     this.touchStart = null;
     this.scrollRaf = null;
     this.disposers = [];
+    this.isPainting = false;
+    this.lastPaintedCell = null;
 
     this.bindEvents();
     this.render();
@@ -59,9 +61,9 @@ export class CanvasRenderer {
       }
     });
     this.on(this.canvas, 'wheel', (e) => this.onWheel(e), { passive: false });
-    this.on(this.canvas, 'mousedown', (e) => this.onPanStart(e));
-    this.on(window, 'mousemove', (e) => this.onPanMove(e));
-    this.on(window, 'mouseup', () => this.onPanEnd());
+    this.on(this.canvas, 'mousedown', (e) => this.onMouseDown(e));
+    this.on(window, 'mousemove', (e) => this.onMouseMove(e));
+    this.on(window, 'mouseup', () => this.onMouseUp());
     this.on(this.canvas, 'click', (e) => this.onCanvasClick(e));
     this.on(this.canvas, 'touchstart', (e) => this.onTouchStart(e), { passive: false });
     this.on(this.canvas, 'touchmove', (e) => this.onTouchMove(e), { passive: false });
@@ -114,20 +116,81 @@ export class CanvasRenderer {
     return { x, y };
   }
 
+  isPaintTool() {
+    const tool = this.getState().activeTool;
+    return tool === 'pencil' || tool === 'eraser';
+  }
+
   handleCellAction(x, y) {
     const s = this.getState();
     if (s.activeTool === 'eyedropper') s.selectColorFromCell(x, y);
     else if (s.activeTool === 'eraser') s.setStitchDone(x, y, false);
     else if (s.activeTool === 'pencil') {
       if (s.activeColorId) s.paintCell(x, y);
-      else s.toggleStitchDone(x, y); // no color selected — fall back to done toggle
+      else s.toggleStitchDone(x, y);
     }
     else s.toggleStitchDone(x, y);
   }
 
+  // ── Mouse drag-to-paint ───────────────────────────────────────────
+  onMouseDown(e) {
+    const s = this.getState();
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      // Pan mode
+      this.isPanning = true;
+      this.lastPan = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+      return;
+    }
+    if (e.button === 0 && s.activeTab === 'edit' && this.isPaintTool()) {
+      this.isPainting = true;
+      this.lastPaintedCell = null;
+      const cell = this.getCellFromEvent(e.clientX, e.clientY);
+      if (cell) {
+        this.handleCellAction(cell.x, cell.y);
+        this.lastPaintedCell = cell;
+      }
+      e.preventDefault();
+    }
+  }
+
+  onMouseMove(e) {
+    // Pan
+    if (this.isPanning) {
+      this.scrollEl.scrollLeft -= e.clientX - this.lastPan.x;
+      this.scrollEl.scrollTop -= e.clientY - this.lastPan.y;
+      this.lastPan = { x: e.clientX, y: e.clientY };
+      return;
+    }
+    // Drag paint
+    if (this.isPainting) {
+      const cell = this.getCellFromEvent(e.clientX, e.clientY);
+      if (cell) {
+        const last = this.lastPaintedCell;
+        if (!last || last.x !== cell.x || last.y !== cell.y) {
+          this.handleCellAction(cell.x, cell.y);
+          this.lastPaintedCell = cell;
+        }
+      }
+    }
+  }
+
+  onMouseUp() {
+    if (this.isPainting) {
+      this.isPainting = false;
+      this.lastPaintedCell = null;
+    }
+    this.isPanning = false;
+    this.pinchStartDist = 0;
+    this.touchStart = null;
+  }
+
   onCanvasClick(e) {
+    // Single clicks are now handled by onMouseDown for paint tools;
+    // only handle click for non-paint tools here to avoid double-firing.
     if (this.getState().activeTab !== 'edit') return;
     if (e.button !== 0 || e.altKey) return;
+    if (this.isPaintTool()) return; // already handled in mousedown
     const cell = this.getCellFromEvent(e.clientX, e.clientY);
     if (cell) this.handleCellAction(cell.x, cell.y);
   }
