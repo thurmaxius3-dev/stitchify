@@ -35,9 +35,9 @@ export class CanvasRenderer {
     this.disposers = [];
     this.isPainting = false;
     this.lastPaintedCell = null;
-    this.paintIntent = null; // 'mark' | 'unmark' | 'paint' — locked for duration of drag
+    this.paintIntent = null;
     this.touchMoved = false;
-    this.lastTouchEnd = 0;
+    this.activePointerId = null;
 
     this.bindEvents();
     this.render();
@@ -65,17 +65,17 @@ export class CanvasRenderer {
       }
     });
     this.on(this.canvas, 'wheel', (e) => this.onWheel(e), { passive: false });
-    // Only bind mouse events on non-touch devices
-    const isTouch = window.matchMedia('(pointer: coarse)').matches;
-    if (!isTouch) {
-      this.on(this.canvas, 'mousedown', (e) => this.onMouseDown(e));
-      this.on(window, 'mousemove', (e) => this.onMouseMove(e));
-      this.on(window, 'mouseup', () => this.onMouseUp());
-      this.on(this.canvas, 'click', (e) => this.onCanvasClick(e));
-    }
-    this.on(this.canvas, 'touchstart', (e) => this.onTouchStart(e), { passive: true });
-    this.on(this.canvas, 'touchmove', (e) => this.onTouchMove(e), { passive: false });
-    this.on(this.canvas, 'touchend', (e) => this.onTouchEnd(e));
+
+    // Unified pointer events — work identically on mouse, touch, and stylus.
+    // No synthetic click events, no ghost taps, no split logic needed.
+    this.on(this.canvas, 'pointerdown', (e) => this.onPointerDown(e));
+    this.on(window, 'pointermove', (e) => this.onPointerMove(e));
+    this.on(window, 'pointerup', (e) => this.onPointerUp(e));
+    this.on(window, 'pointercancel', (e) => this.onPointerUp(e));
+    // Pinch-to-zoom via touch events (pointer events don't expose two-finger gestures)
+    this.on(this.canvas, 'touchstart', (e) => this.onPinchStart(e), { passive: true });
+    this.on(this.canvas, 'touchmove', (e) => this.onPinchMove(e), { passive: false });
+    this.on(this.canvas, 'touchend', () => { this.pinchStartDist = 0; });
   }
 
   destroy() {
@@ -163,17 +163,28 @@ export class CanvasRenderer {
     }
   }
 
-  // ── Mouse drag-to-paint ───────────────────────────────────────────
-  onMouseDown(e) {
+  // ── Unified Pointer Events (mouse + touch + stylus) ──────────────
+  onPointerDown(e) {
+    if (e.button !== 0 && e.pointerType !== 'touch') return;
     const s = this.getState();
+
+    // Middle-click or alt+click = pan
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      // Pan mode
       this.isPanning = true;
       this.lastPan = { x: e.clientX, y: e.clientY };
+      this.canvas.setPointerCapture(e.pointerId);
       e.preventDefault();
       return;
     }
-    if (e.button === 0 && s.activeTab === 'edit' && this.isPaintTool()) {
+
+    this.touchStart = { x: e.clientX, y: e.clientY };
+    this.touchMoved = false;
+    this.lastPan = { x: e.clientX, y: e.clientY };
+    this.activePointerId = e.pointerId;
+    this.canvas.setPointerCapture(e.pointerId);
+
+    // Paint tools act immediately on down
+    if (s.activeTab === 'edit' && this.isPaintTool()) {
       this.isPainting = true;
       this.lastPaintedCell = null;
       const cell = this.getCellFromEvent(e.clientX, e.clientY);
@@ -181,19 +192,39 @@ export class CanvasRenderer {
         this.handleCellAction(cell.x, cell.y);
         this.lastPaintedCell = cell;
       }
-      e.preventDefault();
     }
   }
 
-  onMouseMove(e) {
-    // Pan
+  onPointerMove(e) {
+    if (e.pointerId !== this.activePointerId) return;
+
+    const dx = e.clientX - this.lastPan.x;
+    const dy = e.clientY - this.lastPan.y;
+
     if (this.isPanning) {
-      this.scrollEl.scrollLeft -= e.clientX - this.lastPan.x;
-      this.scrollEl.scrollTop -= e.clientY - this.lastPan.y;
+      this.scrollEl.scrollLeft -= dx;
+      this.scrollEl.scrollTop -= dy;
       this.lastPan = { x: e.clientX, y: e.clientY };
       return;
     }
-    // Drag paint
+
+    // Track movement to distinguish tap from scroll
+    if (this.touchStart && Math.hypot(
+      e.clientX - this.touchStart.x,
+      e.clientY - this.touchStart.y
+    ) > 10) {
+      this.touchMoved = true;
+    }
+
+    // Scroll canvas when dragging without a paint tool
+    if (this.touchMoved && !this.isPainting) {
+      this.scrollEl.scrollLeft -= dx;
+      this.scrollEl.scrollTop -= dy;
+      this.lastPan = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Drag-paint
     if (this.isPainting) {
       const cell = this.getCellFromEvent(e.clientX, e.clientY);
       if (cell) {
@@ -204,28 +235,31 @@ export class CanvasRenderer {
         }
       }
     }
+
+    this.lastPan = { x: e.clientX, y: e.clientY };
   }
 
-  onMouseUp() {
-    if (this.isPainting) {
-      this.isPainting = false;
-      this.lastPaintedCell = null;
-      this.paintIntent = null;
+  onPointerUp(e) {
+    if (e.pointerId !== this.activePointerId) return;
+    const s = this.getState();
+
+    // Finger lifted without moving = tap
+    if (!this.touchMoved && !this.isPainting && !this.isPanning) {
+      if (s.activeTab === 'edit') {
+        const cell = this.getCellFromEvent(e.clientX, e.clientY);
+        if (cell) this.handleCellAction(cell.x, cell.y);
+      }
     }
-    this.isPanning = false;
-    this.pinchStartDist = 0;
-    this.touchStart = null;
-  }
 
-  onCanvasClick(e) {
-    // Suppress the synthetic click the browser fires after a touch -
-    // we already handled the action in onTouchEnd.
-    if (Date.now() - this.lastTouchEnd < 400) return;
-    if (this.getState().activeTab !== 'edit') return;
-    if (e.button !== 0 || e.altKey) return;
-    if (this.isPaintTool()) return; // already handled in mousedown
-    const cell = this.getCellFromEvent(e.clientX, e.clientY);
-    if (cell) this.handleCellAction(cell.x, cell.y);
+    // Reset all state
+    this.isPainting = false;
+    this.isPanning = false;
+    this.lastPaintedCell = null;
+    this.paintIntent = null;
+    this.touchStart = null;
+    this.touchMoved = false;
+    this.activePointerId = null;
+    this.pinchStartDist = 0;
   }
 
   onWheel(e) {
@@ -236,86 +270,26 @@ export class CanvasRenderer {
     }
   }
 
-  onPanStart(e) {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      this.isPanning = true;
-      this.lastPan = { x: e.clientX, y: e.clientY };
-      e.preventDefault();
-    }
-  }
-
-  onPanMove(e) {
-    if (!this.isPanning) return;
-    this.scrollEl.scrollLeft -= e.clientX - this.lastPan.x;
-    this.scrollEl.scrollTop -= e.clientY - this.lastPan.y;
-    this.lastPan = { x: e.clientX, y: e.clientY };
-  }
-
-  onPanEnd() {
-    this.isPanning = false;
-    this.pinchStartDist = 0;
-    this.touchStart = null;
-  }
-
-  onTouchStart(e) {
+  // Pinch-to-zoom (two fingers only, ignored by pointer handlers)
+  onPinchStart(e) {
     if (e.touches.length === 2) {
-      this.pinchStartDist = this.getTouchDist(e.touches);
+      this.pinchStartDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
       this.pinchStartZoom = this.getState().zoom;
-      this.touchStart = null;
-      this.touchMoved = false;
-    } else if (e.touches.length === 1) {
-      const t = e.touches[0];
-      this.touchStart = { x: t.clientX, y: t.clientY };
-      this.touchMoved = false;
-      this.isPanning = false; // don't start panning until we confirm movement
-      this.lastPan = { x: t.clientX, y: t.clientY };
     }
   }
 
-  onTouchMove(e) {
+  onPinchMove(e) {
     if (e.touches.length === 2 && this.pinchStartDist) {
       e.preventDefault();
-      this.getState().setZoom(this.pinchStartZoom * (this.getTouchDist(e.touches) / this.pinchStartDist));
-      this.touchStart = null;
-      this.touchMoved = true;
-    } else if (e.touches.length === 1) {
-      const dx = e.touches[0].clientX - this.lastPan.x;
-      const dy = e.touches[0].clientY - this.lastPan.y;
-      // Only start panning if finger moved more than 10px — gives tap room to breathe
-      if (Math.hypot(
-        e.touches[0].clientX - (this.touchStart?.x ?? e.touches[0].clientX),
-        e.touches[0].clientY - (this.touchStart?.y ?? e.touches[0].clientY)
-      ) > 10) {
-        this.touchMoved = true;
-        this.isPanning = true;
-      }
-      if (this.isPanning) {
-        e.preventDefault();
-        this.scrollEl.scrollLeft -= dx;
-        this.scrollEl.scrollTop -= dy;
-      }
-      this.lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      this.getState().setZoom(this.pinchStartZoom * (dist / this.pinchStartDist));
     }
-  }
-
-  onTouchEnd(e) {
-    if (!this.touchMoved && this.touchStart && e.changedTouches.length === 1) {
-      const t = e.changedTouches[0];
-      if (this.getState().activeTab === 'edit') {
-        const cell = this.getCellFromEvent(t.clientX, t.clientY);
-        if (cell) this.handleCellAction(cell.x, cell.y);
-      }
-    }
-    this.lastTouchEnd = Date.now();
-    this.onPanEnd();
-    this.touchMoved = false;
-  }
-
-  getTouchDist(touches) {
-    return Math.hypot(
-      touches[0].clientX - touches[1].clientX,
-      touches[0].clientY - touches[1].clientY
-    );
   }
 
   get cellPx() {
