@@ -35,6 +35,7 @@ export class CanvasRenderer {
     this.disposers = [];
     this.isPainting = false;
     this.lastPaintedCell = null;
+    this.paintIntent = null; // 'mark' | 'unmark' | 'paint' — locked for duration of drag
     this.touchMoved = false;
     this.lastTouchEnd = 0;
 
@@ -138,16 +139,28 @@ export class CanvasRenderer {
 
   handleCellAction(x, y) {
     const s = this.getState();
-    if (s.activeTool === 'eyedropper') s.selectColorFromCell(x, y);
-    else if (s.activeTool === 'eraser') s.setStitchDone(x, y, false);
-    else if (s.activeTool === 'pencil') {
-      if (s.activeColorId) s.paintCell(x, y);
-      else s.toggleStitchDone(x, y);
+    if (s.activeTool === 'eyedropper') { s.selectColorFromCell(x, y); return; }
+    if (s.activeTool === 'eraser') { s.setStitchDone(x, y, false); return; }
+    if (s.activeTool === 'bucket') { if (s.activeColorId) s.floodFill(x, y); return; }
+
+    // Pencil with color = paint; pencil/none = toggle stitch done
+    const isPencilPaint = s.activeTool === 'pencil' && s.activeColorId;
+    if (isPencilPaint) { s.paintCell(x, y); return; }
+
+    // Stitch toggle — during a drag, lock to the first cell's intent
+    // so dragging back over a cell doesn't flip it again
+    const idx = y * s.pattern.width + x;
+    if (this.isPainting && this.paintIntent !== null) {
+      // Only act if this cell matches the intended direction
+      const currentlyDone = s.doneStitches[idx] === 1;
+      if (this.paintIntent === 'mark' && !currentlyDone) s.setStitchDone(x, y, true);
+      if (this.paintIntent === 'unmark' && currentlyDone) s.setStitchDone(x, y, false);
+    } else {
+      // First cell of the drag — determine intent from current state
+      const currentlyDone = s.doneStitches[idx] === 1;
+      this.paintIntent = currentlyDone ? 'unmark' : 'mark';
+      s.setStitchDone(x, y, !currentlyDone);
     }
-    else if (s.activeTool === 'bucket') {
-      if (s.activeColorId) s.floodFill(x, y);
-    }
-    else s.toggleStitchDone(x, y);
   }
 
   // ── Mouse drag-to-paint ───────────────────────────────────────────
@@ -197,6 +210,7 @@ export class CanvasRenderer {
     if (this.isPainting) {
       this.isPainting = false;
       this.lastPaintedCell = null;
+      this.paintIntent = null;
     }
     this.isPanning = false;
     this.pinchStartDist = 0;
