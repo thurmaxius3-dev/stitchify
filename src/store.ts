@@ -521,6 +521,10 @@ export const useStore = create<StitchifyState>((set, get) => ({
       name: `${source.name} (copy)`,
       updatedAt: Date.now(),
       syncedAt: null,
+      // Fresh start — no marked stitches, reset progress counters
+      doneMatrix: new Array(source.doneMatrix.length).fill(0),
+      progress: 0,
+      stitched: 0,
     };
     await dbSaveProject(copy);
     set((s) => ({ savedProjects: [copy, ...s.savedProjects] }));
