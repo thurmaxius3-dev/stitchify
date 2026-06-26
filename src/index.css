@@ -343,6 +343,24 @@ body {
   background: #fef2f2;
 }
 
+/* Compact icon buttons for duplicate / delete in project rows */
+.project-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s;
+}
+.project-action-btn:hover {
+  background: #f3f4f6;
+}
+
 .project-thumb {
   width: 4rem;
   height: 4rem;

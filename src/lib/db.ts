@@ -95,6 +95,24 @@ export async function loadProject(id: string): Promise<SavedProject | null> {
   });
 }
 
+export async function renameProject(id: string, newName: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const store = tx(db, STORE_PROJECTS, 'readwrite');
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const project: SavedProject | undefined = getReq.result;
+      if (!project) { resolve(); return; }
+      project.name = newName;
+      project.updatedAt = Date.now();
+      const putReq = store.put(project);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
 export async function deleteProject(id: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {

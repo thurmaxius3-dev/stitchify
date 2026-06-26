@@ -16,7 +16,9 @@ import type {
 } from './lib/types';
 import {
   loadAllProjects,
+  saveProject as dbSaveProject,
   deleteProject as dbDeleteProject,
+  renameProject as dbRenameProject,
   type SavedProject,
 } from './lib/db';
 import { scheduleAutoSave, flushAutoSave, setCloudUser } from './lib/autoSave';
@@ -147,6 +149,8 @@ export interface StitchifyState {
   applyPattern: (pattern: Pattern, meta: Partial<ActiveProject & { id?: string }>) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
+  renameProject: (projectId: string, newName: string) => Promise<void>;
+  duplicateProject: (projectId: string) => Promise<void>;
   openSubview: (name: SubviewId) => void;
   closeSubview: () => void;
   refreshSavedProjects: () => Promise<void>;
@@ -488,6 +492,38 @@ export const useStore = create<StitchifyState>((set, get) => ({
   deleteProject: async (projectId) => {
     await dbDeleteProject(projectId);
     set((s) => ({ savedProjects: s.savedProjects.filter((p) => p.id !== projectId) }));
+  },
+
+  renameProject: async (projectId, newName) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    await dbRenameProject(projectId, trimmed);
+    set((s) => ({
+      savedProjects: s.savedProjects.map((p) =>
+        p.id === projectId ? { ...p, name: trimmed, updatedAt: Date.now() } : p
+      ),
+      // Also update activeProject name if it's the open one
+      activeProject:
+        s.activeProject.id === projectId
+          ? { ...s.activeProject, name: trimmed }
+          : s.activeProject,
+    }));
+  },
+
+  duplicateProject: async (projectId) => {
+    const { savedProjects } = get();
+    const source = savedProjects.find((p) => p.id === projectId);
+    if (!source) return;
+    const newId = generateId();
+    const copy: SavedProject = {
+      ...source,
+      id: newId,
+      name: `${source.name} (copy)`,
+      updatedAt: Date.now(),
+      syncedAt: null,
+    };
+    await dbSaveProject(copy);
+    set((s) => ({ savedProjects: [copy, ...s.savedProjects] }));
   },
 
   openSubview: (name) => set({ activeSubview: name, leftDrawerOpen: false }),

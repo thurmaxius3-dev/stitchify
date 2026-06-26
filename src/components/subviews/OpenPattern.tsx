@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useStore, DMC_LIBRARY } from '../../store';
 import { PatternEngine } from '../../lib/patternEngine';
 import type { SavedProject } from '../../lib/db';
@@ -12,7 +12,6 @@ function Thumbnail({ project }: { project: SavedProject }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const size = 64;
-    // Reconstruct a small preview from the stored matrix
     const scaleX = size / project.width;
     const scaleY = size / project.height;
     const scale = Math.min(scaleX, scaleY);
@@ -29,12 +28,25 @@ function Thumbnail({ project }: { project: SavedProject }) {
 
 function TrashIcon() {
   return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
       />
     </svg>
   );
@@ -53,21 +65,48 @@ function CloudIcon({ synced }: { synced: boolean }) {
   );
 }
 
-export default function OpenPattern() {
-  const savedProjects = useStore((s) => s.savedProjects);
-  const refreshSavedProjects = useStore((s) => s.refreshSavedProjects);
-  const loadProject = useStore((s) => s.loadProject);
+/** Inline-editable project name row item */
+function ProjectRow({ p, onLoad }: { p: SavedProject; onLoad: (id: string) => void }) {
   const deleteProject = useStore((s) => s.deleteProject);
+  const duplicateProject = useStore((s) => s.duplicateProject);
+  const renameProject = useStore((s) => s.renameProject);
   const cloudSyncEnabled = useStore((s) => s.cloudSyncEnabled);
 
-  useEffect(() => {
-    refreshSavedProjects();
-  }, [refreshSavedProjects]);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(p.name);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const sorted = useMemo(
-    () => [...savedProjects].sort((a, b) => b.updatedAt - a.updatedAt),
-    [savedProjects]
-  );
+  // Keep draft in sync if name changes externally (e.g. cloud refresh)
+  useEffect(() => {
+    if (!editing) setDraft(p.name);
+  }, [p.name, editing]);
+
+  const startEdit = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(p.name);
+    setEditing(true);
+    setTimeout(() => {
+      inputRef.current?.select();
+    }, 0);
+  }, [p.name]);
+
+  const commitEdit = useCallback(() => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== p.name) {
+      renameProject(p.id, trimmed);
+    } else {
+      setDraft(p.name); // revert if blank or unchanged
+    }
+  }, [draft, p.id, p.name, renameProject]);
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') commitEdit();
+    if (e.key === 'Escape') {
+      setDraft(p.name);
+      setEditing(false);
+    }
+  }, [commitEdit, p.name]);
 
   function formatDate(ts: number) {
     return new Date(ts).toLocaleDateString(undefined, {
@@ -79,6 +118,96 @@ export default function OpenPattern() {
   }
 
   return (
+    <div className="project-row">
+      {/* Main clickable area — opens pattern */}
+      <button
+        type="button"
+        className="project-row-main"
+        onClick={() => !editing && onLoad(p.id)}
+        style={{ cursor: editing ? 'default' : 'pointer' }}
+      >
+        <div className="project-thumb">
+          <Thumbnail project={p} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {/* Name — double-click to rename */}
+          <div className="font-semibold text-gray-800 flex items-center min-w-0">
+            {editing ? (
+              <input
+                ref={inputRef}
+                className="flex-1 min-w-0 border border-teal-400 rounded px-1 text-sm font-semibold text-gray-800 bg-white outline-none"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={onKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                maxLength={80}
+                aria-label="Rename project"
+              />
+            ) : (
+              <span
+                className="truncate cursor-text select-none"
+                onDoubleClick={startEdit}
+                title="Double-click to rename"
+              >
+                {p.name}
+              </span>
+            )}
+            {cloudSyncEnabled && !editing && <CloudIcon synced={p.syncedAt !== null} />}
+          </div>
+          <div className="text-sm text-gray-500">
+            {p.width}&times;{p.height}, {p.colorSystem}, {p.colorCount} colors
+          </div>
+          <div className="text-xs text-gray-400">{formatDate(p.updatedAt)}</div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="text-sm font-medium text-gray-700">{(p.progress * 100).toFixed(2)}%</div>
+          <div className="text-xs text-gray-500">
+            {p.stitched.toLocaleString()} / {p.total.toLocaleString()} st.
+          </div>
+        </div>
+      </button>
+
+      {/* Action buttons */}
+      <div className="flex flex-col gap-1 px-1">
+        <button
+          type="button"
+          className="project-action-btn text-gray-400 hover:text-teal-600"
+          aria-label={`Duplicate ${p.name}`}
+          title="Duplicate"
+          onClick={() => duplicateProject(p.id)}
+        >
+          <CopyIcon />
+        </button>
+        <button
+          type="button"
+          className="project-action-btn text-gray-400 hover:text-red-500"
+          aria-label={`Delete ${p.name}`}
+          title="Delete"
+          onClick={() => deleteProject(p.id)}
+        >
+          <TrashIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function OpenPattern() {
+  const savedProjects = useStore((s) => s.savedProjects);
+  const refreshSavedProjects = useStore((s) => s.refreshSavedProjects);
+  const loadProject = useStore((s) => s.loadProject);
+
+  useEffect(() => {
+    refreshSavedProjects();
+  }, [refreshSavedProjects]);
+
+  const sorted = useMemo(
+    () => [...savedProjects].sort((a, b) => b.updatedAt - a.updatedAt),
+    [savedProjects]
+  );
+
+  return (
     <section className="subview">
       <SubviewHeader title="Open pattern" />
       <div className="flex-1 overflow-y-auto">
@@ -88,37 +217,7 @@ export default function OpenPattern() {
           </p>
         ) : (
           sorted.map((p) => (
-            <div key={p.id} className="project-row">
-              <button type="button" className="project-row-main" onClick={() => loadProject(p.id)}>
-                <div className="project-thumb">
-                  <Thumbnail project={p} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-800 flex items-center">
-                    {p.name}
-                    {cloudSyncEnabled && <CloudIcon synced={p.syncedAt !== null} />}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {p.width}&times;{p.height}, {p.colorSystem}, {p.colorCount} colors
-                  </div>
-                  <div className="text-xs text-gray-400">{formatDate(p.updatedAt)}</div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-medium text-gray-700">{(p.progress * 100).toFixed(2)}%</div>
-                  <div className="text-xs text-gray-500">
-                    {p.stitched.toLocaleString()} / {p.total.toLocaleString()} st.
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                className="project-delete-btn"
-                aria-label={`Delete ${p.name}`}
-                onClick={() => deleteProject(p.id)}
-              >
-                <TrashIcon />
-              </button>
-            </div>
+            <ProjectRow key={p.id} p={p} onLoad={loadProject} />
           ))
         )}
       </div>
