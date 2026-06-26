@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stitchify — Reset</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 4rem auto; padding: 1rem; text-align: center; }
+    h2 { color: #3d5a6c; }
+    p { color: #555; line-height: 1.5; }
+    button {
+      margin-top: 1.5rem; padding: 0.75rem 2rem;
+      background: #dc2626; color: white; border: none;
+      border-radius: 6px; font-size: 1rem; cursor: pointer;
+    }
+    button:disabled { background: #aaa; cursor: default; }
+    #status { margin-top: 1rem; color: #3d5a6c; font-weight: bold; min-height: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h2>Stitchify Reset</h2>
+  <p>This will clear all local data (saved projects, settings, cache) and give you a completely fresh start.<br><br>
+  <strong>Cloud projects (if signed in) are not affected.</strong></p>
+  <button id="btn">Clear everything &amp; reload</button>
+  <div id="status"></div>
+  <script>
+    document.getElementById('btn').addEventListener('click', async () => {
+      const btn = document.getElementById('btn');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      status.textContent = 'Clearing...';
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        const dbs = await indexedDB.databases?.() ?? [];
+        await Promise.all(dbs.map(d => d.name && indexedDB.deleteDatabase(d.name)));
+        const regs = await navigator.serviceWorker?.getRegistrations() ?? [];
+        await Promise.all(regs.map(r => r.unregister()));
+        const keys = await caches?.keys() ?? [];
+        await Promise.all(keys.map(k => caches.delete(k)));
+        status.textContent = 'Done! Redirecting...';
+        setTimeout(() => { window.location.href = '/'; }, 1000);
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

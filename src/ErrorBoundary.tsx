@@ -33,7 +33,19 @@ export default class ErrorBoundary extends Component<Props, State> {
           {error.stack}
         </pre>
         <button
-          onClick={() => { localStorage.clear(); window.location.reload(); }}
+          onClick={async () => {
+          localStorage.clear();
+          // Clear IndexedDB
+          const dbs = await indexedDB.databases?.() ?? [];
+          await Promise.all(dbs.map((d) => d.name && indexedDB.deleteDatabase(d.name)));
+          // Unregister service workers
+          const regs = await navigator.serviceWorker?.getRegistrations() ?? [];
+          await Promise.all(regs.map((r) => r.unregister()));
+          // Clear caches
+          const keys = await caches?.keys() ?? [];
+          await Promise.all(keys.map((k) => caches.delete(k)));
+          window.location.reload();
+        }}
           style={{
             marginTop: '1rem', padding: '0.5rem 1rem', background: '#dc2626',
             color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer',
