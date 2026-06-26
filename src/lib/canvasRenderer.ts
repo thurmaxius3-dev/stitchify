@@ -36,6 +36,7 @@ export class CanvasRenderer {
     this.isPainting = false;
     this.lastPaintedCell = null;
     this.touchMoved = false;
+    this.lastTouchEnd = 0;
 
     this.bindEvents();
     this.render();
@@ -199,8 +200,9 @@ export class CanvasRenderer {
   }
 
   onCanvasClick(e) {
-    // Single clicks are now handled by onMouseDown for paint tools;
-    // only handle click for non-paint tools here to avoid double-firing.
+    // Suppress the synthetic click the browser fires after a touch -
+    // we already handled the action in onTouchEnd.
+    if (Date.now() - this.lastTouchEnd < 400) return;
     if (this.getState().activeTab !== 'edit') return;
     if (e.button !== 0 || e.altKey) return;
     if (this.isPaintTool()) return; // already handled in mousedown
@@ -286,6 +288,7 @@ export class CanvasRenderer {
         if (cell) this.handleCellAction(cell.x, cell.y);
       }
     }
+    this.lastTouchEnd = Date.now();
     this.onPanEnd();
     this.touchMoved = false;
   }
