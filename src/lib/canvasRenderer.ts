@@ -459,8 +459,10 @@ export class CanvasRenderer {
       ctx.strokeStyle = mode === 'red' ? '#e53935' : 'rgba(0, 0, 0, 0.65)';
       ctx.lineWidth = mode === 'red' ? 2 : 1.5;
       ctx.beginPath();
-      const gx0 = Math.floor(x0 / 10) * 10;
-      const gy0 = Math.floor(y0 / 10) * 10;
+      // Bold lines fall on the right edge of every 10th cell (cells 10, 20, 30...)
+      // Start from the first multiple of 10 >= x0, offset +1 so line is after cell 10 not before
+      const gx0 = Math.ceil(x0 / 10) * 10;
+      const gy0 = Math.ceil(y0 / 10) * 10;
       for (let x = gx0; x <= x1; x += 10) {
         const pos = x * cell + 0.5;
         ctx.moveTo(pos, y0 * cell);
