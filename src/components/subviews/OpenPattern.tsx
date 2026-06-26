@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useStore, DMC_LIBRARY, MOCK_PROJECTS } from '../../store';import { PatternEngine } from '../../lib/patternEngine';
-import type { MockProject } from '../../lib/types';
+import { useStore, DMC_LIBRARY } from '../../store';
+import { PatternEngine } from '../../lib/patternEngine';
+import type { SavedProject } from '../../lib/db';
 import SubviewHeader from './SubviewHeader';
 
-function Thumbnail({ project }: { project: MockProject }) {
+function Thumbnail({ project }: { project: SavedProject }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -11,16 +12,14 @@ function Thumbnail({ project }: { project: MockProject }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const size = 64;
-    const thumb = PatternEngine.generateProceduralPattern(
-      size,
-      Math.round(size * (project.height / project.width)),
-      project.seed,
-      DMC_LIBRARY
-    );
-    const scale = size / Math.max(thumb.width, thumb.height);
-    for (let y = 0; y < thumb.height; y++) {
-      for (let x = 0; x < thumb.width; x++) {
-        ctx.fillStyle = DMC_LIBRARY[thumb.matrix[y * thumb.width + x]].hex;
+    // Reconstruct a small preview from the stored matrix
+    const scaleX = size / project.width;
+    const scaleY = size / project.height;
+    const scale = Math.min(scaleX, scaleY);
+    const matrix = new Uint16Array(project.matrix);
+    for (let y = 0; y < project.height; y++) {
+      for (let x = 0; x < project.width; x++) {
+        ctx.fillStyle = DMC_LIBRARY[matrix[y * project.width + x]]?.hex ?? '#ccc';
         ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale));
       }
     }
@@ -41,34 +40,68 @@ function TrashIcon() {
   );
 }
 
+function CloudIcon({ synced }: { synced: boolean }) {
+  return (
+    <svg
+      className={`w-3 h-3 ml-1 ${synced ? 'text-teal-400' : 'text-gray-300'}`}
+      fill="currentColor"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+    >
+      <path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" />
+    </svg>
+  );
+}
+
 export default function OpenPattern() {
-  const deletedProjectIds = useStore((s) => s.deletedProjectIds);
+  const savedProjects = useStore((s) => s.savedProjects);
+  const refreshSavedProjects = useStore((s) => s.refreshSavedProjects);
   const loadProject = useStore((s) => s.loadProject);
   const deleteProject = useStore((s) => s.deleteProject);
-  const projects = useMemo(
-    () => MOCK_PROJECTS.filter((p) => !deletedProjectIds.includes(p.id)),
-    [deletedProjectIds]
+  const cloudSyncEnabled = useStore((s) => s.cloudSyncEnabled);
+
+  useEffect(() => {
+    refreshSavedProjects();
+  }, [refreshSavedProjects]);
+
+  const sorted = useMemo(
+    () => [...savedProjects].sort((a, b) => b.updatedAt - a.updatedAt),
+    [savedProjects]
   );
+
+  function formatDate(ts: number) {
+    return new Date(ts).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
   return (
     <section className="subview">
       <SubviewHeader title="Open pattern" />
       <div className="flex-1 overflow-y-auto">
-        {projects.length === 0 ? (
+        {sorted.length === 0 ? (
           <p className="p-8 text-center text-sm text-gray-500">
-            No saved patterns here yet. Create one from the menu or import a file.
+            No saved patterns yet. Create one from the menu or import a file.
           </p>
         ) : (
-          projects.map((p) => (
+          sorted.map((p) => (
             <div key={p.id} className="project-row">
               <button type="button" className="project-row-main" onClick={() => loadProject(p.id)}>
                 <div className="project-thumb">
                   <Thumbnail project={p} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-gray-800">{p.name}</div>
+                  <div className="font-semibold text-gray-800 flex items-center">
+                    {p.name}
+                    {cloudSyncEnabled && <CloudIcon synced={p.syncedAt !== null} />}
+                  </div>
                   <div className="text-sm text-gray-500">
                     {p.width}&times;{p.height}, {p.colorSystem}, {p.colorCount} colors
                   </div>
+                  <div className="text-xs text-gray-400">{formatDate(p.updatedAt)}</div>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="text-sm font-medium text-gray-700">{(p.progress * 100).toFixed(2)}%</div>

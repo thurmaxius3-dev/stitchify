@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import {
   MenuIcon,
@@ -10,6 +10,37 @@ import {
   ShareIcon,
 } from './icons';
 import PaletteDropdown from './PaletteDropdown';
+import { onSaveStatus, type SaveStatus } from '../lib/autoSave';
+
+function SaveIndicator() {
+  const [status, setStatus] = useState<SaveStatus>('idle');
+
+  useEffect(() => {
+    return onSaveStatus(setStatus);
+  }, []);
+
+  if (status === 'idle') return null;
+
+  const label =
+    status === 'pending' || status === 'saving'
+      ? 'Saving…'
+      : status === 'saved'
+      ? 'Saved'
+      : 'Save error';
+
+  const color =
+    status === 'error'
+      ? 'text-red-300'
+      : status === 'saved'
+      ? 'text-teal-300'
+      : 'text-white/60';
+
+  return (
+    <span className={`text-xs font-medium transition-opacity ${color}`} aria-live="polite">
+      {label}
+    </span>
+  );
+}
 
 export default function Header() {
   const activeTab = useStore((s) => s.activeTab);
@@ -57,6 +88,7 @@ export default function Header() {
             <MenuIcon className="w-6 h-6" />
           </button>
           <span className="text-sm sm:text-base font-medium truncate">{projectName}</span>
+          <SaveIndicator />
         </div>
         <div className="flex items-center gap-1">
           <button type="button" className="p-2 hover:bg-white/10 rounded" aria-label="Fullscreen" onClick={toggleFullscreen}>

@@ -14,52 +14,20 @@ import type {
   ToolId,
   ViewMode,
 } from './lib/types';
+import {
+  loadAllProjects,
+  deleteProject as dbDeleteProject,
+  type SavedProject,
+} from './lib/db';
+import { scheduleAutoSave, flushAutoSave, setCloudUser } from './lib/autoSave';
+import { supabase, onAuthStateChange } from './lib/supabase';
+import type { User } from '@supabase/supabase-js';
 
 export const DMC_LIBRARY = DMC_COLORS;
 const MAX_UNDO_HISTORY = 20;
-const DELETED_PROJECTS_KEY = 'stitchify-deleted-project-ids';
 
-function loadDeletedProjectIds(): string[] {
-  try {
-    const raw = localStorage.getItem(DELETED_PROJECTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveDeletedProjectIds(ids: string[]): void {
-  localStorage.setItem(DELETED_PROJECTS_KEY, JSON.stringify(ids));
-}
-
-export const MOCK_PROJECTS: MockProject[] = [
-  {
-    id: 'dw60-1',
-    name: 'DW60 (1)',
-    width: 594,
-    height: 860,
-    colorSystem: 'DMC',
-    colorCount: 214,
-    progress: 0.1499,
-    stitched: 76550,
-    total: 510840,
-    seed: 101,
-  },
-  {
-    id: 'dw60',
-    name: 'DW60',
-    width: 594,
-    height: 860,
-    colorSystem: 'DMC',
-    colorCount: 214,
-    progress: 0.1169,
-    stitched: 59720,
-    total: 510840,
-    seed: 42,
-  },
-];
+// Keep MOCK_PROJECTS for backward compat / demo fallback
+export const MOCK_PROJECTS: MockProject[] = [];
 
 function createDefaultPattern(): Pattern {
   return PatternEngine.generateProceduralPattern(50, 30, 42, DMC_LIBRARY) as Pattern;
@@ -75,12 +43,38 @@ function buildPalette(pattern: Pattern): { palette: PaletteEntry[]; symbolMap: M
   return { palette, symbolMap };
 }
 
+function generateId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Build a SavedProject snapshot from the current store state. */
+function buildSnapshot(s: StitchifyState): SavedProject {
+  return {
+    id: s.activeProject.id ?? generateId(),
+    name: s.activeProject.name,
+    width: s.pattern.width,
+    height: s.pattern.height,
+    colorSystem: s.activeProject.colorSystem,
+    colorCount: s.activeProject.colorCount,
+    progress: s.activeProject.progress ?? 0,
+    stitched: s.activeProject.stitched ?? 0,
+    total: s.activeProject.total ?? s.pattern.width * s.pattern.height,
+    matrix: Array.from(s.pattern.matrix),
+    doneMatrix: Array.from(s.doneStitches),
+    activeDmcIndices: s.pattern.activeDmcIndices ?? null,
+    originX: s.pattern.originX,
+    originY: s.pattern.originY,
+    updatedAt: Date.now(),
+    syncedAt: null,
+  };
+}
+
 export interface StitchifyState {
   // Pattern + palette
   pattern: Pattern;
   projectPalette: PaletteEntry[];
   symbolMap: Map<number, string>;
-  activeProject: ActiveProject;
+  activeProject: ActiveProject & { id?: string };
 
   // UI chrome
   activeTab: TabId;
@@ -120,8 +114,13 @@ export interface StitchifyState {
   newPatternDithering: boolean;
   isConverting: boolean;
 
-  // Saved patterns list (Open pattern)
-  deletedProjectIds: string[];
+  // Saved projects list (replaces MOCK_PROJECTS)
+  savedProjects: SavedProject[];
+  deletedProjectIds: string[]; // kept for compat
+
+  // Auth + cloud
+  cloudUser: User | null;
+  cloudSyncEnabled: boolean;
 
   // Actions
   set: (patch: Partial<StitchifyState>) => void;
@@ -143,11 +142,14 @@ export interface StitchifyState {
   canUndo: () => boolean;
   canRedo: () => boolean;
   setZoom: (z: number) => void;
-  applyPattern: (pattern: Pattern, meta: Partial<ActiveProject>) => void;
+  applyPattern: (pattern: Pattern, meta: Partial<ActiveProject & { id?: string }>) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
   openSubview: (name: SubviewId) => void;
   closeSubview: () => void;
+  refreshSavedProjects: () => Promise<void>;
+  triggerAutoSave: () => void;
+  setCloudSync: (enabled: boolean) => void;
 }
 
 const defaultPattern = createDefaultPattern();
@@ -158,6 +160,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
   projectPalette: defaultPalette,
   symbolMap: defaultSymbolMap,
   activeProject: {
+    id: undefined,
     name: 'Project MVP',
     width: defaultPattern.width,
     height: defaultPattern.height,
@@ -197,7 +200,11 @@ export const useStore = create<StitchifyState>((set, get) => ({
   newPatternDithering: false,
   isConverting: false,
 
-  deletedProjectIds: loadDeletedProjectIds(),
+  savedProjects: [],
+  deletedProjectIds: [],
+
+  cloudUser: null,
+  cloudSyncEnabled: false,
 
   set: (patch) => set(patch),
 
@@ -255,6 +262,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
       redoStack: nextRedo,
       doneVersion: get().doneVersion + 1,
     });
+    get().triggerAutoSave();
   },
 
   redo: () => {
@@ -271,6 +279,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
       undoStack: nextUndo,
       doneVersion: get().doneVersion + 1,
     });
+    get().triggerAutoSave();
   },
 
   canUndo: () => get().undoStack.length > 0,
@@ -286,11 +295,13 @@ export const useStore = create<StitchifyState>((set, get) => ({
       done.set(pattern.doneMatrix);
       doneVersion += 1;
     }
+    const id = meta.id ?? generateId();
     set({
       pattern,
       projectPalette: palette,
       symbolMap,
       activeProject: {
+        id,
         name: meta.name || 'Pattern',
         width: pattern.width,
         height: pattern.height,
@@ -311,18 +322,26 @@ export const useStore = create<StitchifyState>((set, get) => ({
       activeSubview: null,
       sourceImage: null,
     });
+    // Trigger save after state settles
+    setTimeout(() => get().triggerAutoSave(), 100);
   },
 
   loadProject: (projectId) => {
-    const project = MOCK_PROJECTS.find((p) => p.id === projectId);
-    if (!project || get().deletedProjectIds.includes(projectId)) return;
-    const pattern = PatternEngine.generateProceduralPattern(
-      project.width,
-      project.height,
-      project.seed,
-      DMC_LIBRARY
-    ) as Pattern;
+    const { savedProjects } = get();
+    const project = savedProjects.find((p) => p.id === projectId);
+    if (!project) return;
+    const matrix = new Uint16Array(project.matrix);
+    const pattern: Pattern = {
+      width: project.width,
+      height: project.height,
+      originX: project.originX,
+      originY: project.originY,
+      matrix,
+      activeDmcIndices: project.activeDmcIndices,
+      doneMatrix: new Uint8Array(project.doneMatrix),
+    };
     get().applyPattern(pattern, {
+      id: project.id,
       name: project.name,
       progress: project.progress,
       stitched: project.stitched,
@@ -330,19 +349,35 @@ export const useStore = create<StitchifyState>((set, get) => ({
     });
   },
 
-  deleteProject: (projectId) => {
-    const deletedProjectIds = get().deletedProjectIds ?? [];
-    if (deletedProjectIds.includes(projectId)) return;
-    const next = deletedProjectIds.concat(projectId);
-    saveDeletedProjectIds(next);
-    set({ deletedProjectIds: next });
+  deleteProject: async (projectId) => {
+    await dbDeleteProject(projectId);
+    set((s) => ({ savedProjects: s.savedProjects.filter((p) => p.id !== projectId) }));
   },
 
   openSubview: (name) => set({ activeSubview: name, leftDrawerOpen: false }),
   closeSubview: () => set({ activeSubview: null }),
+
+  refreshSavedProjects: async () => {
+    const projects = await loadAllProjects();
+    set({ savedProjects: projects });
+  },
+
+  triggerAutoSave: () => {
+    const s = get();
+    if (!s.activeProject.id) return;
+    const snapshot = buildSnapshot(s);
+    scheduleAutoSave(snapshot);
+  },
+
+  setCloudSync: (enabled) => {
+    const { cloudUser } = get();
+    set({ cloudSyncEnabled: enabled });
+    setCloudUser(cloudUser?.id ?? null, enabled);
+    localStorage.setItem('stitchify-cloud-sync', enabled ? '1' : '0');
+  },
 }));
 
-/** Shared done-toggle that records undo history and bumps the version counter. */
+/** Shared done-toggle that records undo history, bumps version, and schedules save. */
 function applyDone(
   get: () => StitchifyState,
   set: (patch: Partial<StitchifyState>) => void,
@@ -361,13 +396,54 @@ function applyDone(
   if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
   doneStitches[i] = to;
   set({ undoStack: nextUndo, redoStack: [], doneVersion: get().doneVersion + 1 });
+  get().triggerAutoSave();
 }
 
 export function totalStitches(s: StitchifyState): number {
   return s.pattern.width * s.pattern.height;
 }
 
-export function visibleProjects(s: StitchifyState): MockProject[] {
-  const deleted = s.deletedProjectIds ?? [];
-  return MOCK_PROJECTS.filter((p) => !deleted.includes(p.id));
+export function visibleProjects(s: StitchifyState): SavedProject[] {
+  return s.savedProjects;
 }
+
+// ─── Bootstrap: load saved projects + auth on startup ────────────────────────
+
+async function bootstrap() {
+  const store = useStore.getState();
+
+  // Load local projects
+  await store.refreshSavedProjects();
+
+  // Restore cloud sync preference
+  const cloudPref = localStorage.getItem('stitchify-cloud-sync') === '1';
+
+  // Auth state listener
+  if (supabase) {
+    onAuthStateChange((user) => {
+      useStore.setState({ cloudUser: user });
+      const enabled = user ? cloudPref : false;
+      useStore.getState().setCloudSync(enabled);
+    });
+
+    // Check existing session
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        useStore.setState({ cloudUser: data.user });
+        useStore.getState().setCloudSync(cloudPref);
+      }
+    });
+  }
+
+  // Flush save on page hide
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      const s = useStore.getState();
+      if (s.activeProject.id) {
+        flushAutoSave(buildSnapshot(s));
+      }
+    }
+  });
+}
+
+bootstrap();
