@@ -30,9 +30,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png}'],
-        // Large imported patterns can produce big in-memory canvases; keep the
-        // precache focused on the app shell.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Take over immediately on install — don't wait for all tabs to close
+        skipWaiting: true,
+        clientsClaim: true,
+        // Clean up old caches from previous SW versions
+        cleanupOutdatedCaches: true,
       },
     }),
   ],
