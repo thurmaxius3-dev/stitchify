@@ -264,7 +264,7 @@ export class CanvasRenderer {
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(px, py, cell, cell);
         } else {
-          ctx.fillStyle = isInactive ? this.grayscaleFill(color.hex, 0.2) : color.hex;
+          ctx.fillStyle = color.hex;
           ctx.fillRect(px, py, cell, cell);
         }
 
@@ -281,7 +281,7 @@ export class CanvasRenderer {
   drawCellMark(ctx, opts) {
     const { px, py, cell, color, symbol, isDone, matchesActive, isInactive, viewMode, showSymbols, contrastFactor } = opts;
     const markColor = viewMode === 'chart' ? '#000000' : this.getContrastSymbolColor(color.hex, contrastFactor);
-    const scale = isInactive ? 0.35 : 1;
+    const scale = 1;
 
     if (isDone && matchesActive) {
       this.drawMark(ctx, px, py, cell, 'circle', markColor, scale);
@@ -310,8 +310,9 @@ export class CanvasRenderer {
     ctx.fillStyle = color;
     ctx.lineWidth = Math.max(1, cell * 0.1) * scale;
     if (type === 'circle') {
+      ctx.lineWidth = Math.max(1.5, cell * 0.13) * scale;
       ctx.beginPath();
-      ctx.arc(cx, cy, cell * 0.22 * scale, 0, Math.PI * 2);
+      ctx.arc(cx, cy, cell * 0.3 * scale, 0, Math.PI * 2);
       ctx.stroke();
     } else if (type === 'x') {
       const inset = cell * 0.14 * scale;
