@@ -464,3 +464,32 @@ body {
   transition: background 0.15s, border-color 0.15s;
 }
 .btn-secondary:hover { background: #f9fafb; border-color: #9ca3af; }
+
+/* Color swap mode */
+.swap-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  border-radius: 0.25rem;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.swap-btn:hover { color: #14b8a6; background: #f0fdfa; }
+.palette-item:hover .swap-btn { display: flex; }
+
+.palette-item.swap-source {
+  background: #f0fdfa;
+  border: 1.5px solid #14b8a6;
+  border-radius: 6px;
+}
+.palette-item.swap-target:hover {
+  background: #fefce8;
+  border: 1.5px dashed #f59e0b;
+  border-radius: 6px;
+}

@@ -147,6 +147,7 @@ export interface StitchifyState {
   setZoom: (z: number) => void;
   paintCell: (x: number, y: number) => void;
   floodFill: (x: number, y: number) => void;
+  swapColor: (fromColorId: string, toColorId: string) => void;
   applyPattern: (pattern: Pattern, meta: Partial<ActiveProject & { id?: string }>) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
@@ -392,6 +393,48 @@ export const useStore = create<StitchifyState>((set, get) => ({
       fillCells: paintedCells,
     };
     const nextUndo = undoStack.concat(fillEntry);
+    if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
+
+    const newPattern = { ...pattern, matrix: newMatrix };
+    const { palette, symbolMap } = buildPalette(newPattern);
+    set({
+      pattern: newPattern,
+      projectPalette: palette,
+      symbolMap,
+      renderGeneration: get().renderGeneration + 1,
+      undoStack: nextUndo,
+      redoStack: [],
+    });
+    get().triggerAutoSave();
+  },
+
+  swapColor: (fromColorId, toColorId) => {
+    const { pattern, projectPalette, undoStack } = get();
+    const fromEntry = projectPalette.find((p) => p.color.id === fromColorId);
+    const toEntry = projectPalette.find((p) => p.color.id === toColorId);
+    if (!fromEntry || !toEntry || fromEntry.dmcIndex === toEntry.dmcIndex) return;
+
+    const { width, height, matrix } = pattern;
+    const newMatrix = new Uint16Array(matrix);
+    const paintedCells: { x: number; y: number; fromColor: number }[] = [];
+
+    for (let i = 0; i < width * height; i++) {
+      if (newMatrix[i] === fromEntry.dmcIndex) {
+        paintedCells.push({ x: i % width, y: Math.floor(i / width), fromColor: fromEntry.dmcIndex });
+        newMatrix[i] = toEntry.dmcIndex;
+      }
+    }
+    if (paintedCells.length === 0) return;
+
+    // Single undoable entry for the whole swap
+    const swapEntry: HistoryEntry = {
+      x: 0, y: 0, from: 0, to: 0,
+      kind: 'paint',
+      fromColor: fromEntry.dmcIndex,
+      toColor: toEntry.dmcIndex,
+      fillCells: paintedCells,
+    };
+    const nextUndo = undoStack.concat(swapEntry);
     if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
 
     const newPattern = { ...pattern, matrix: newMatrix };
