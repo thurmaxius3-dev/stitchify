@@ -21,6 +21,30 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Catch any crash before React loads and show it on screen
+      window.addEventListener('error', function(e) {
+        if (document.getElementById('root').innerHTML === '') {
+          document.getElementById('root').innerHTML =
+            '<div style="font-family:sans-serif;padding:2rem;color:#991b1b;background:#fff1f2;border-radius:8px;margin:2rem">' +
+            '<h2 style="margin-top:0">Startup error</h2>' +
+            '<pre style="white-space:pre-wrap;word-break:break-word;font-size:12px">' +
+            (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || '') + '\n\n' +
+            (e.error && e.error.stack ? e.error.stack : '') +
+            '</pre></div>';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        if (document.getElementById('root').innerHTML === '') {
+          document.getElementById('root').innerHTML =
+            '<div style="font-family:sans-serif;padding:2rem;color:#991b1b;background:#fff1f2;border-radius:8px;margin:2rem">' +
+            '<h2 style="margin-top:0">Unhandled promise rejection</h2>' +
+            '<pre style="white-space:pre-wrap;word-break:break-word;font-size:12px">' +
+            (e.reason && e.reason.stack ? e.reason.stack : String(e.reason)) +
+            '</pre></div>';
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
