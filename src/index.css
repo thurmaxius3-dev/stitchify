@@ -158,6 +158,12 @@ body {
 }
 .palette-sort-btn:hover { background: #ccfbf1; border-color: #5eead4; }
 
+/* Icon-only search button — fixed square so it never gets clipped */
+.palette-search-btn {
+  padding: 0.15rem 0.3rem;
+  flex-shrink: 0;
+}
+
 .palette-dropdown-list { overflow-y: auto; flex: 1; }
 
 .palette-item {

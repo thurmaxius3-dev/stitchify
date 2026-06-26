@@ -125,11 +125,11 @@ export default function PaletteDropdown() {
           </div>
         ) : (
           <>
-            <span>Colors in project</span>
-            <div className="flex items-center gap-1">
+            <span className="truncate flex-1 min-w-0">Colors in project</span>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 type="button"
-                className="palette-sort-btn"
+                className="palette-sort-btn palette-search-btn"
                 aria-label="Find DMC color"
                 title="Find a DMC color"
                 onClick={() => openSubview('threads-library')}
@@ -141,11 +141,11 @@ export default function PaletteDropdown() {
                 className="palette-sort-btn"
                 onClick={() => setSortIndex((i) => (i + 1) % PALETTE_SORTS.length)}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M3 7h13M3 12h9M3 17h5M17 7v12m0 0l-3-3m3 3l3-3" />
                 </svg>
-                <span>{PALETTE_SORTS[sortIndex].label}</span>
+                <span className="hidden sm:inline">{PALETTE_SORTS[sortIndex].label}</span>
               </button>
             </div>
           </>
