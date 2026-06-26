@@ -186,7 +186,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
   gridMode: 'light',
   symbolStyle: 'circle',
   contrast: 50,
-  showSymbols: true,
+  showSymbols: false,
 
   activeColorId: null,
   zoom: 1,
