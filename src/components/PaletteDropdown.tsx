@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useStore, totalStitches } from '../store';
+import { useStore } from '../store';
 import type { PaletteEntry } from '../lib/types';
 
 const PALETTE_SORTS = [
@@ -20,7 +20,6 @@ export default function PaletteDropdown() {
   const palette = useStore((s) => s.projectPalette);
   const activeColorId = useStore((s) => s.activeColorId);
   const setActiveColor = useStore((s) => s.setActiveColor);
-  const total = useStore(totalStitches);
   const doneStitches = useStore((s) => s.doneStitches);
   const pattern = useStore((s) => s.pattern);
   const [sortIndex, setSortIndex] = useState(0);

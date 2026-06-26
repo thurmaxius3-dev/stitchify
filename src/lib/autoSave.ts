@@ -25,9 +25,9 @@ export type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 type StatusListener = (s: SaveStatus) => void;
 const _listeners = new Set<StatusListener>();
 
-export function onSaveStatus(fn: StatusListener) {
+export function onSaveStatus(fn: StatusListener): () => void {
   _listeners.add(fn);
-  return () => _listeners.delete(fn);
+  return () => { _listeners.delete(fn); };
 }
 
 function emit(status: SaveStatus) {

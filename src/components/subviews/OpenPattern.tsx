@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useStore, DMC_LIBRARY } from '../../store';
-import { PatternEngine } from '../../lib/patternEngine';
 import type { SavedProject } from '../../lib/db';
 import SubviewHeader from './SubviewHeader';
 
