@@ -8,13 +8,22 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import type { SavedProject } from './db';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export let supabase: SupabaseClient | null = null;
 
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+try {
+  if (
+    SUPABASE_URL &&
+    SUPABASE_ANON_KEY &&
+    SUPABASE_URL.startsWith('http')
+  ) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch (e) {
+  console.warn('Supabase init skipped (missing or invalid env vars):', e);
+  supabase = null;
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
