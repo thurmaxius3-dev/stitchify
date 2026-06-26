@@ -19,6 +19,7 @@ import {
   saveProject as dbSaveProject,
   deleteProject as dbDeleteProject,
   renameProject as dbRenameProject,
+  getLastOpenProjectId,
   type SavedProject,
 } from './lib/db';
 import { scheduleAutoSave, flushAutoSave, setCloudUser } from './lib/autoSave';
