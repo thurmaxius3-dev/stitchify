@@ -29,7 +29,7 @@ export interface ActiveProject {
 }
 
 export type TabId = 'edit' | 'palette' | 'view' | 'share';
-export type ToolId = 'eraser' | 'eyedropper' | 'pencil' | 'wand';
+export type ToolId = 'eraser' | 'eyedropper' | 'pencil' | 'wand' | 'bucket';
 export type ViewMode = 'solid' | 'symbol-color' | 'chart';
 export type GridMode = 'none' | 'light' | 'heavy' | 'red' | 'combined';
 export type SymbolStyle = 'x' | 'circle';
@@ -65,7 +65,8 @@ export interface HistoryEntry {
   y: number;
   from: number;
   to: number;
-  kind: 'done' | 'paint'; // 'done' = stitch toggle, 'paint' = color change
-  fromColor?: number;      // DMC index before paint
-  toColor?: number;        // DMC index after paint
+  kind: 'done' | 'paint';
+  fromColor?: number;
+  toColor?: number;
+  fillCells?: { x: number; y: number; fromColor: number }[]; // for flood fill
 }

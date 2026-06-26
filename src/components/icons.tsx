@@ -66,6 +66,15 @@ export const PencilIcon = (p: IconProps) =>
 export const WandIcon = (p: IconProps) =>
   stroke(p, 'M15 4l2 2m-6 6l-4 4 2 2 4-4m4-8l2 2M3 21l2-2');
 
+export const BucketIcon = (p: IconProps) => (
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" {...p}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M7 4l10 10-3 3L4 7l3-3zm0 0L4 7M19 15a2 2 0 100 4 2 2 0 000-4z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+      d="M17 13l2 2" />
+  </svg>
+);
+
 export const UndoIcon = (p: IconProps) => stroke(p, 'M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4');
 export const RedoIcon = (p: IconProps) => stroke(p, 'M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4');
 

@@ -143,6 +143,7 @@ export interface StitchifyState {
   canRedo: () => boolean;
   setZoom: (z: number) => void;
   paintCell: (x: number, y: number) => void;
+  floodFill: (x: number, y: number) => void;
   applyPattern: (pattern: Pattern, meta: Partial<ActiveProject & { id?: string }>) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
@@ -257,7 +258,13 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
     if (entry.kind === 'paint') {
       const newMatrix = new Uint16Array(pattern.matrix);
-      newMatrix[i] = entry.fromColor!;
+      if (entry.fillCells) {
+        for (const cell of entry.fillCells) {
+          newMatrix[cell.y * pattern.width + cell.x] = cell.fromColor;
+        }
+      } else {
+        newMatrix[i] = entry.fromColor!;
+      }
       const newPattern = { ...pattern, matrix: newMatrix };
       const { palette, symbolMap } = buildPalette(newPattern);
       const nextRedo = redoStack.concat(entry);
@@ -292,7 +299,13 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
     if (entry.kind === 'paint') {
       const newMatrix = new Uint16Array(pattern.matrix);
-      newMatrix[i] = entry.toColor!;
+      if (entry.fillCells) {
+        for (const cell of entry.fillCells) {
+          newMatrix[cell.y * pattern.width + cell.x] = entry.toColor!;
+        }
+      } else {
+        newMatrix[i] = entry.toColor!;
+      }
       const newPattern = { ...pattern, matrix: newMatrix };
       const { palette, symbolMap } = buildPalette(newPattern);
       const nextUndo = undoStack.concat(entry);
@@ -323,6 +336,65 @@ export const useStore = create<StitchifyState>((set, get) => ({
   canRedo: () => get().redoStack.length > 0,
 
   setZoom: (z) => set({ zoom: Math.min(4, Math.max(0.5, z)) }),
+
+  floodFill: (startX, startY) => {
+    const { pattern, activeColorId, projectPalette, undoStack } = get();
+    if (!activeColorId) return;
+    const entry = projectPalette.find((p) => p.color.id === activeColorId);
+    if (!entry) return;
+    const { width, height, matrix } = pattern;
+    if (startX < 0 || startX >= width || startY < 0 || startY >= height) return;
+    const targetColor = matrix[startY * width + startX];
+    if (targetColor === entry.dmcIndex) return; // already that color
+
+    // BFS flood fill
+    const newMatrix = new Uint16Array(matrix);
+    const visited = new Uint8Array(width * height);
+    const queue: [number, number][] = [[startX, startY]];
+    const paintedCells: { x: number; y: number; fromColor: number }[] = [];
+    visited[startY * width + startX] = 1;
+
+    while (queue.length > 0) {
+      const [x, y] = queue.shift()!;
+      const i = y * width + x;
+      paintedCells.push({ x, y, fromColor: newMatrix[i] });
+      newMatrix[i] = entry.dmcIndex;
+      const neighbors: [number, number][] = [[x-1,y],[x+1,y],[x,y-1],[x,y+1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        const ni = ny * width + nx;
+        if (!visited[ni] && newMatrix[ni] === targetColor) {
+          visited[ni] = 1;
+          queue.push([nx, ny]);
+        }
+      }
+    }
+
+    if (paintedCells.length === 0) return;
+
+    // Record as a single undo entry (multi-cell fill)
+    const fillEntry: HistoryEntry = {
+      x: startX, y: startY, from: 0, to: 0,
+      kind: 'paint',
+      fromColor: targetColor,
+      toColor: entry.dmcIndex,
+      fillCells: paintedCells,
+    };
+    const nextUndo = undoStack.concat(fillEntry);
+    if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
+
+    const newPattern = { ...pattern, matrix: newMatrix };
+    const { palette, symbolMap } = buildPalette(newPattern);
+    set({
+      pattern: newPattern,
+      projectPalette: palette,
+      symbolMap,
+      renderGeneration: get().renderGeneration + 1,
+      undoStack: nextUndo,
+      redoStack: [],
+    });
+    get().triggerAutoSave();
+  },
 
   paintCell: (x, y) => {
     const { pattern, activeColorId, projectPalette, undoStack } = get();

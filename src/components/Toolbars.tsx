@@ -6,6 +6,7 @@ import {
   EyedropperIcon,
   PencilIcon,
   WandIcon,
+  BucketIcon,
   UndoIcon,
   RedoIcon,
   ContrastIcon,
@@ -22,9 +23,10 @@ export function EditToolbar() {
   const setZoom = useStore((s) => s.setZoom);
 
   const tools = [
-    { id: 'eraser', label: 'Eraser', Icon: EraserIcon },
-    { id: 'eyedropper', label: 'Eye Dropper', Icon: EyedropperIcon },
-    { id: 'pencil', label: 'Pencil', Icon: PencilIcon },
+    { id: 'pencil', label: 'Pencil — paint cells with selected color', Icon: PencilIcon },
+    { id: 'bucket', label: 'Fill bucket — flood fill connected region', Icon: BucketIcon },
+    { id: 'eraser', label: 'Eraser — clear stitch marks', Icon: EraserIcon },
+    { id: 'eyedropper', label: 'Eye dropper — pick color from cell', Icon: EyedropperIcon },
     { id: 'wand', label: 'Magic Wand', Icon: WandIcon },
   ] as const;
 

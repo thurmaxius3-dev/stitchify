@@ -129,6 +129,9 @@ export class CanvasRenderer {
       if (s.activeColorId) s.paintCell(x, y);
       else s.toggleStitchDone(x, y);
     }
+    else if (s.activeTool === 'bucket') {
+      if (s.activeColorId) s.floodFill(x, y);
+    }
     else s.toggleStitchDone(x, y);
   }
 
