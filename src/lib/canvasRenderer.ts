@@ -25,6 +25,7 @@ export class CanvasRenderer {
     this.rulerLeftCanvas = this.initRulerCanvas(this.rulerLeft);
 
     this.lastRenderKey = null;
+    this.renderRaf = null;
     this.isPanning = false;
     this.lastPan = { x: 0, y: 0 };
     this.pinchStartDist = 0;
@@ -75,6 +76,7 @@ export class CanvasRenderer {
     this.disposers.forEach((d) => d());
     this.disposers = [];
     if (this.scrollRaf) cancelAnimationFrame(this.scrollRaf);
+    if (this.renderRaf) cancelAnimationFrame(this.renderRaf);
   }
 
   getCanvasRenderKey() {
@@ -98,13 +100,20 @@ export class CanvasRenderer {
     const key = this.getCanvasRenderKey();
     if (key !== this.lastRenderKey) {
       this.lastRenderKey = key;
-      this.render();
+      // Throttle to one render per animation frame
+      if (this.renderRaf) return;
+      this.renderRaf = requestAnimationFrame(() => {
+        this.renderRaf = null;
+        this.render();
+      });
     }
   }
 
   needsViewportCull() {
+    // Always cull on mobile (small viewport), or for any pattern > 2500 cells
     const { width, height } = this.getState().pattern;
-    return width * height > 10000;
+    const isMobile = window.innerWidth < 768;
+    return isMobile || width * height > 2500;
   }
 
   getCellFromEvent(clientX, clientY) {
@@ -320,10 +329,17 @@ export class CanvasRenderer {
     const cull = this.needsViewportCull();
     const bounds = this.getVisibleBounds(width, height, cell);
 
-    this.canvas.width = width * cell;
-    this.canvas.height = height * cell;
-    this.wrap.style.width = `${this.canvas.width}px`;
-    this.wrap.style.height = `${this.canvas.height}px`;
+    // Cap canvas size to avoid crashes on mobile (max 4096px per side)
+    const MAX_CANVAS = 4096;
+    const canvasW = Math.min(width * cell, MAX_CANVAS);
+    const canvasH = Math.min(height * cell, MAX_CANVAS);
+    // Only resize the canvas element when dimensions actually change (expensive op)
+    if (this.canvas.width !== canvasW || this.canvas.height !== canvasH) {
+      this.canvas.width = canvasW;
+      this.canvas.height = canvasH;
+    }
+    this.wrap.style.width = `${width * cell}px`;
+    this.wrap.style.height = `${height * cell}px`;
 
     if (cull) {
       ctx.fillStyle = '#9e9e9e';

@@ -339,7 +339,12 @@ export const useStore = create<StitchifyState>((set, get) => ({
   canUndo: () => get().undoStack.length > 0,
   canRedo: () => get().redoStack.length > 0,
 
-  setZoom: (z) => set({ zoom: Math.min(4, Math.max(0.5, z)) }),
+  setZoom: (z) => {
+    // On mobile, cap zoom lower to avoid canvas memory crashes
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const maxZoom = isMobile ? 3 : 5;
+    set({ zoom: Math.min(maxZoom, Math.max(0.25, z)) });
+  },
 
   floodFill: (startX, startY) => {
     const { pattern, activeColorId, projectPalette, undoStack } = get();
