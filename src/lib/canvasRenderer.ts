@@ -34,6 +34,7 @@ export class CanvasRenderer {
     this.disposers = [];
     this.isPainting = false;
     this.lastPaintedCell = null;
+    this.touchMoved = false;
 
     this.bindEvents();
     this.render();
@@ -233,10 +234,15 @@ export class CanvasRenderer {
       this.pinchStartDist = this.getTouchDist(e.touches);
       this.pinchStartZoom = this.getState().zoom;
       this.touchStart = null;
+      this.touchMoved = false;
     } else if (e.touches.length === 1) {
-      this.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      const t = e.touches[0];
+      this.touchStart = { x: t.clientX, y: t.clientY };
+      this.touchMoved = false;
       this.isPanning = true;
-      this.lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      this.lastPan = { x: t.clientX, y: t.clientY };
+      // Prevent the browser's default scroll/long-press so quick taps fire reliably
+      e.preventDefault();
     }
   }
 
@@ -245,10 +251,11 @@ export class CanvasRenderer {
       e.preventDefault();
       this.getState().setZoom(this.pinchStartZoom * (this.getTouchDist(e.touches) / this.pinchStartDist));
       this.touchStart = null;
+      this.touchMoved = true;
     } else if (e.touches.length === 1 && this.isPanning) {
       const dx = e.touches[0].clientX - this.lastPan.x;
       const dy = e.touches[0].clientY - this.lastPan.y;
-      if (Math.hypot(dx, dy) > 8) this.touchStart = null;
+      if (Math.hypot(dx, dy) > 4) this.touchMoved = true;
       this.scrollEl.scrollLeft -= dx;
       this.scrollEl.scrollTop -= dy;
       this.lastPan = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -256,17 +263,15 @@ export class CanvasRenderer {
   }
 
   onTouchEnd(e) {
-    if (this.touchStart && e.changedTouches.length === 1) {
+    if (!this.touchMoved && this.touchStart && e.changedTouches.length === 1) {
       const t = e.changedTouches[0];
-      if (
-        Math.hypot(t.clientX - this.touchStart.x, t.clientY - this.touchStart.y) < 10 &&
-        this.getState().activeTab === 'edit'
-      ) {
+      if (this.getState().activeTab === 'edit') {
         const cell = this.getCellFromEvent(t.clientX, t.clientY);
         if (cell) this.handleCellAction(cell.x, cell.y);
       }
     }
     this.onPanEnd();
+    this.touchMoved = false;
   }
 
   getTouchDist(touches) {
