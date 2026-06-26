@@ -118,6 +118,10 @@ export class CanvasRenderer {
     const s = this.getState();
     if (s.activeTool === 'eyedropper') s.selectColorFromCell(x, y);
     else if (s.activeTool === 'eraser') s.setStitchDone(x, y, false);
+    else if (s.activeTool === 'pencil') {
+      if (s.activeColorId) s.paintCell(x, y);
+      else s.toggleStitchDone(x, y); // no color selected — fall back to done toggle
+    }
     else s.toggleStitchDone(x, y);
   }
 

@@ -142,6 +142,7 @@ export interface StitchifyState {
   canUndo: () => boolean;
   canRedo: () => boolean;
   setZoom: (z: number) => void;
+  paintCell: (x: number, y: number) => void;
   applyPattern: (pattern: Pattern, meta: Partial<ActiveProject & { id?: string }>) => void;
   loadProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
@@ -286,6 +287,30 @@ export const useStore = create<StitchifyState>((set, get) => ({
   canRedo: () => get().redoStack.length > 0,
 
   setZoom: (z) => set({ zoom: Math.min(4, Math.max(0.5, z)) }),
+
+  paintCell: (x, y) => {
+    const { pattern, activeColorId, projectPalette } = get();
+    if (!activeColorId) return;
+    const { width, height, matrix } = pattern;
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    // Find the DMC index for the active color
+    const entry = projectPalette.find((p) => p.color.id === activeColorId);
+    if (!entry) return;
+    const i = y * width + x;
+    if (matrix[i] === entry.dmcIndex) return; // no change
+    // Mutate a copy of the matrix so React sees the change
+    const newMatrix = new Uint16Array(matrix);
+    newMatrix[i] = entry.dmcIndex;
+    const newPattern = { ...pattern, matrix: newMatrix };
+    const { palette, symbolMap } = buildPalette(newPattern);
+    set({
+      pattern: newPattern,
+      projectPalette: palette,
+      symbolMap,
+      renderGeneration: get().renderGeneration + 1,
+    });
+    get().triggerAutoSave();
+  },
 
   applyPattern: (pattern, meta) => {
     const { palette, symbolMap } = buildPalette(pattern);
