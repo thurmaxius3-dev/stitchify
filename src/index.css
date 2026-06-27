@@ -269,7 +269,17 @@ body {
 
 .canvas-wrap { position: relative; display: inline-block; transform-origin: 0 0; }
 
-.stitch-canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+.stitch-canvas {
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  /* Stick to top-left of scroll viewport so canvas always covers the visible area.
+     The wrap div provides the full virtual scroll size; canvas is just the window. */
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
 
 .contrast-popover {
   position: absolute;
