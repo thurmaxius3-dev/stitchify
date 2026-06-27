@@ -416,55 +416,60 @@ const SIGNATURE = 'EM005';
   function decodeDoneLayer(bytes, width, height, pngStart, paletteEnd) {
     if (paletteEnd == null || paletteEnd < 0) return null;
 
-    // The .em file may store the done bitmap with a wider row stride than the
-    // visible pattern width. For large patterns (>= 500 wide), eCanvas pads each
-    // row to 600 bits (594 stitches + 6 placeholder columns at the right edge).
-    // Using `width` as the stride causes 6-bit drift per row — 720 bits by row 120.
-    // Detect and use the stored stride for reading, discard placeholder columns.
-    const storedRowWidth = width >= 500 ? Math.ceil(width / 600) * 600 : width;
-    const limitBit = (pngStart >= 0 ? pngStart : bytes.length) * 8;
-    const calibRows = Math.min(height, 220);
+    // The .em file stores the done bitmap with a row stride that may be wider
+    // than the visible pattern width (placeholder columns at the right edge).
+    // We try both the exact width and the next byte-boundary as candidate strides,
+    // then pick whichever produces the most solid (fully-done) rows — that's the
+    // true stored stride. This prevents diagonal drift.
+    const byteAlignedWidth = Math.ceil(width / 8) * 8;
+    const candidateStrides = byteAlignedWidth === width
+      ? [width]
+      : [width, byteAlignedWidth];
 
-    const scanLo = Math.max(0, paletteEnd * 8 - 16);
-    const scanHi = paletteEnd * 8 + 320;
+    const limitBit = (pngStart >= 0 ? pngStart * 8 : bytes.length * 8);
+    const calibRows = Math.min(height, 120); // top 120 rows — your completed section
+
+    // Scan a generous window around paletteEnd — done bitmap can start well after palette
+    const scanLo = Math.max(0, paletteEnd * 8 - 64);
+    const scanHi = Math.min(limitBit, paletteEnd * 8 + 4800); // ~600 bytes of slack
 
     let bestStart = -1;
+    let bestStride = width;
     let bestFull = -1;
     let bestTotal = -1;
-    for (let bitStart = scanLo; bitStart <= scanHi; bitStart++) {
-      // Only skip if even the first calibration row would overflow.
-      // Don't gate on the full bitmap size — the PNG may sit before the
-      // last done-row, and the calibration only needs the top ~220 rows.
-      if (bitStart + storedRowWidth * calibRows > limitBit) break;
-      let full = 0;
-      let total = 0;
-      for (let y = 0; y < calibRows; y++) {
-        let c = 0;
-        const rowBit = bitStart + y * storedRowWidth;
-        for (let x = 0; x < width; x++) {
-          const p = rowBit + x;
-          c += (bytes[p >> 3] >> (7 - (p & 7))) & 1;
+
+    for (const stride of candidateStrides) {
+      for (let bitStart = scanLo; bitStart <= scanHi; bitStart++) {
+        if (bitStart + stride * calibRows > limitBit) break;
+        let full = 0;
+        let total = 0;
+        for (let y = 0; y < calibRows; y++) {
+          let c = 0;
+          const rowBit = bitStart + y * stride;
+          for (let x = 0; x < width; x++) {
+            const p = rowBit + x;
+            c += (bytes[p >> 3] >> (7 - (p & 7))) & 1;
+          }
+          total += c;
+          if (c >= width - 1) full++;
         }
-        total += c;
-        if (c >= width - 1) full++;
-      }
-      if (full > bestFull || (full === bestFull && total > bestTotal)) {
-        bestFull = full;
-        bestTotal = total;
-        bestStart = bitStart;
+        if (full > bestFull || (full === bestFull && total > bestTotal)) {
+          bestFull = full;
+          bestTotal = total;
+          bestStart = bitStart;
+          bestStride = stride;
+        }
       }
     }
 
-    // No solid rows at any alignment → no recognizable straight-across progress.
+    // No solid rows at any alignment → no recognizable progress data.
     if (bestStart < 0 || bestFull === 0) return null;
 
     const done = new Uint8Array(width * height);
     for (let y = 0; y < height; y++) {
-      // Use storedRowWidth as stride; skip placeholder columns (x >= width)
-      const rowBit = bestStart + y * storedRowWidth;
+      const rowBit = bestStart + y * bestStride;
       for (let x = 0; x < width; x++) {
         const p = rowBit + x;
-        // Guard against reading past the end of the file
         if ((p >> 3) >= bytes.length) break;
         done[y * width + x] = (bytes[p >> 3] >> (7 - (p & 7))) & 1;
       }
