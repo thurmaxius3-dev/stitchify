@@ -212,7 +212,7 @@ export class CanvasRenderer {
       return;
     }
 
-    // Track movement to distinguish tap from scroll
+    // Track movement to distinguish tap from drag-paint
     if (this.touchStart && Math.hypot(
       e.clientX - this.touchStart.x,
       e.clientY - this.touchStart.y
@@ -220,8 +220,14 @@ export class CanvasRenderer {
       this.touchMoved = true;
     }
 
-    // Scroll canvas when dragging without a paint tool
-    if (this.touchMoved && !this.isPainting) {
+    // On touch, dragging without a paint tool does nothing —
+    // scrolling is handled by the dedicated scrollbars instead.
+    if (this.touchMoved && !this.isPainting && e.pointerType === 'touch') {
+      return;
+    }
+
+    // On mouse (desktop), drag without paint tool still pans
+    if (this.touchMoved && !this.isPainting && e.pointerType === 'mouse') {
       this.scrollEl.scrollLeft -= dx;
       this.scrollEl.scrollTop -= dy;
       this.lastPan = { x: e.clientX, y: e.clientY };
