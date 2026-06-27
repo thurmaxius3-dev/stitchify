@@ -124,8 +124,13 @@ export class CanvasRenderer {
   getCellFromEvent(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
     const cell = this.cellPx;
-    const x = Math.floor((clientX - rect.left) / cell);
-    const y = Math.floor((clientY - rect.top) / cell);
+    // Canvas is position:sticky so rect.left/top are its visual position in the
+    // viewport. We must add scrollLeft/scrollTop to convert from viewport-relative
+    // coordinates to pattern-relative coordinates.
+    const sl = this.scrollEl.scrollLeft;
+    const st = this.scrollEl.scrollTop;
+    const x = Math.floor((clientX - rect.left + sl) / cell);
+    const y = Math.floor((clientY - rect.top  + st) / cell);
     const { width, height } = this.getState().pattern;
     if (x < 0 || x >= width || y < 0 || y >= height) return null;
     return { x, y };
