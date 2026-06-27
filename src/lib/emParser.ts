@@ -432,8 +432,10 @@ const SIGNATURE = 'EM005';
     let bestFull = -1;
     let bestTotal = -1;
     for (let bitStart = scanLo; bitStart <= scanHi; bitStart++) {
-      // Check using storedRowWidth so calibration doesn't drift
-      if (bitStart + storedRowWidth * height > limitBit) break;
+      // Only skip if even the first calibration row would overflow.
+      // Don't gate on the full bitmap size — the PNG may sit before the
+      // last done-row, and the calibration only needs the top ~220 rows.
+      if (bitStart + storedRowWidth * calibRows > limitBit) break;
       let full = 0;
       let total = 0;
       for (let y = 0; y < calibRows; y++) {
@@ -462,6 +464,8 @@ const SIGNATURE = 'EM005';
       const rowBit = bestStart + y * storedRowWidth;
       for (let x = 0; x < width; x++) {
         const p = rowBit + x;
+        // Guard against reading past the end of the file
+        if ((p >> 3) >= bytes.length) break;
         done[y * width + x] = (bytes[p >> 3] >> (7 - (p & 7))) & 1;
       }
     }
