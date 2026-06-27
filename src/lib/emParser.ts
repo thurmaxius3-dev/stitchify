@@ -416,7 +416,12 @@ const SIGNATURE = 'EM005';
   function decodeDoneLayer(bytes, width, height, pngStart, paletteEnd) {
     if (paletteEnd == null || paletteEnd < 0) return null;
 
-    const totalBits = width * height;
+    // The .em file may store the done bitmap with a wider row stride than the
+    // visible pattern width. For large patterns (>= 500 wide), eCanvas pads each
+    // row to 600 bits (594 stitches + 6 placeholder columns at the right edge).
+    // Using `width` as the stride causes 6-bit drift per row — 720 bits by row 120.
+    // Detect and use the stored stride for reading, discard placeholder columns.
+    const storedRowWidth = width >= 500 ? Math.ceil(width / 600) * 600 : width;
     const limitBit = (pngStart >= 0 ? pngStart : bytes.length) * 8;
     const calibRows = Math.min(height, 220);
 
@@ -427,12 +432,13 @@ const SIGNATURE = 'EM005';
     let bestFull = -1;
     let bestTotal = -1;
     for (let bitStart = scanLo; bitStart <= scanHi; bitStart++) {
-      if (bitStart + totalBits > limitBit) break;
+      // Check using storedRowWidth so calibration doesn't drift
+      if (bitStart + storedRowWidth * height > limitBit) break;
       let full = 0;
       let total = 0;
       for (let y = 0; y < calibRows; y++) {
         let c = 0;
-        const rowBit = bitStart + y * width;
+        const rowBit = bitStart + y * storedRowWidth;
         for (let x = 0; x < width; x++) {
           const p = rowBit + x;
           c += (bytes[p >> 3] >> (7 - (p & 7))) & 1;
@@ -450,9 +456,10 @@ const SIGNATURE = 'EM005';
     // No solid rows at any alignment → no recognizable straight-across progress.
     if (bestStart < 0 || bestFull === 0) return null;
 
-    const done = new Uint8Array(totalBits);
+    const done = new Uint8Array(width * height);
     for (let y = 0; y < height; y++) {
-      const rowBit = bestStart + y * width;
+      // Use storedRowWidth as stride; skip placeholder columns (x >= width)
+      const rowBit = bestStart + y * storedRowWidth;
       for (let x = 0; x < width; x++) {
         const p = rowBit + x;
         done[y * width + x] = (bytes[p >> 3] >> (7 - (p & 7))) & 1;
