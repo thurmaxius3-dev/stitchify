@@ -84,9 +84,9 @@ export default function PatternCanvas() {
         <div className="flex flex-1 min-h-0">
           <div ref={rulerLeftRef} className="ruler-left" />
           <div ref={scrollRef} className="canvas-scroll">
-            <div ref={wrapRef} className="canvas-wrap">
-              <canvas ref={canvasRef} className="stitch-canvas" />
-            </div>
+            {/* wrap provides virtual scroll dimensions; canvas overlays it sticky */}
+            <div ref={wrapRef} className="canvas-wrap" />
+            <canvas ref={canvasRef} className="stitch-canvas" />
           </div>
         </div>
       </div>

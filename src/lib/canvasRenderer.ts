@@ -342,30 +342,24 @@ export class CanvasRenderer {
     const isolating = Boolean(activeColorId);
     const bounds = this.getVisibleBounds(width, height, cell);
 
-    // The virtual canvas is always the full pattern size (for scroll area)
+    // Size the canvas to the viewport (never exceeds screen size regardless of zoom)
+    // The wrap div provides the full virtual scroll area.
+    const canvasW = this.scrollEl.clientWidth  || window.innerWidth;
+    const canvasH = this.scrollEl.clientHeight || window.innerHeight;
     this.wrap.style.width  = `${width  * cell}px`;
     this.wrap.style.height = `${height * cell}px`;
-
-    // The actual <canvas> element is a viewport window: capped to the visible area
-    // so it never exceeds device limits, regardless of zoom level.
-    const canvasW = Math.min(width  * cell, this.scrollEl.clientWidth  || window.innerWidth);
-    const canvasH = Math.min(height * cell, this.scrollEl.clientHeight || window.innerHeight);
     if (this.canvas.width !== Math.round(canvasW) || this.canvas.height !== Math.round(canvasH)) {
       this.canvas.width  = Math.round(canvasW);
       this.canvas.height = Math.round(canvasH);
     }
 
-    // Canvas is position:sticky so it always covers the visible area.
-    // We translate the drawing context by the scroll offset so the right
-    // cells appear — effectively making the canvas a sliding viewport window.
+    // Offset drawing by scroll position so correct cells appear in viewport
     const sl = this.scrollEl.scrollLeft;
     const st = this.scrollEl.scrollTop;
 
-    // Draw the background for viewport-culled regions
     ctx.fillStyle = '#9e9e9e';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Translate drawing coords so cell (bounds.x0, bounds.y0) maps to canvas origin
     ctx.save();
     ctx.translate(-sl, -st);
 

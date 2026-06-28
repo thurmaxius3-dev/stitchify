@@ -289,18 +289,25 @@ body {
 
 .ruler-canvas { display: block; width: 100%; height: 100%; }
 
-.canvas-wrap { position: relative; display: inline-block; transform-origin: 0 0; }
+.canvas-wrap {
+  /* Ghost div — provides the full virtual scroll size so the scroll container
+     scrolls correctly. The canvas overlays it as a sticky viewport window. */
+  position: absolute;
+  top: 0;
+  left: 0;
+}
 
 .stitch-canvas {
   display: block;
   image-rendering: pixelated;
   cursor: crosshair;
-  /* Canvas is positioned absolute at top-left of the wrap div.
-     The wrap provides virtual scroll dimensions; canvas covers the viewport
-     via JS sizing (clientWidth/clientHeight) + ctx.translate for scroll offset. */
-  position: absolute;
+  /* Direct child of canvas-scroll — sticky works correctly here.
+     Canvas always covers the visible area; JS draws the right cells
+     via ctx.translate(-scrollLeft, -scrollTop). */
+  position: sticky;
   top: 0;
   left: 0;
+  z-index: 1;
 }
 
 .contrast-popover {
