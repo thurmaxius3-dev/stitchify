@@ -122,11 +122,12 @@ export class CanvasRenderer {
   }
 
   getCellFromEvent(clientX, clientY) {
-    const rect = this.canvas.getBoundingClientRect();
     const cell = this.cellPx;
-    // Canvas is position:sticky so rect.left/top are its visual position in the
-    // viewport. We must add scrollLeft/scrollTop to convert from viewport-relative
-    // coordinates to pattern-relative coordinates.
+    // Canvas is position:absolute at (0,0) of the wrap div.
+    // getBoundingClientRect() gives its visual position in the viewport,
+    // which changes as you scroll. Add scroll offset to go from viewport
+    // coords to full-pattern coords.
+    const rect = this.scrollEl.getBoundingClientRect();
     const sl = this.scrollEl.scrollLeft;
     const st = this.scrollEl.scrollTop;
     const x = Math.floor((clientX - rect.left + sl) / cell);
@@ -160,7 +161,7 @@ export class CanvasRenderer {
     if (s.activeTool === 'marker') {
       if (!s.activeColorId) return;
       const idx = y * s.pattern.width + x;
-      const cellColorId = s.pattern.palette[s.pattern.matrix[idx]]?.id;
+      const cellColorId = DMC_LIBRARY[s.pattern.matrix[idx]]?.id;
       if (cellColorId !== s.activeColorId) return; // only mark stitches of selected color
       const currentlyDone = s.doneStitches[idx] === 1;
       // Lock drag direction on first cell so dragging back doesn't flip

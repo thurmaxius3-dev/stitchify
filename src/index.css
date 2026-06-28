@@ -295,12 +295,12 @@ body {
   display: block;
   image-rendering: pixelated;
   cursor: crosshair;
-  /* Stick to top-left of scroll viewport so canvas always covers the visible area.
-     The wrap div provides the full virtual scroll size; canvas is just the window. */
-  position: sticky;
+  /* Canvas is positioned absolute at top-left of the wrap div.
+     The wrap provides virtual scroll dimensions; canvas covers the viewport
+     via JS sizing (clientWidth/clientHeight) + ctx.translate for scroll offset. */
+  position: absolute;
   top: 0;
   left: 0;
-  z-index: 1;
 }
 
 .contrast-popover {
