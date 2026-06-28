@@ -138,32 +138,40 @@ export class CanvasRenderer {
 
   isPaintTool() {
     const tool = this.getState().activeTool;
-    return tool === 'pencil' || tool === 'eraser';
+    return tool === 'pencil' || tool === 'marker';
   }
 
   handleCellAction(x, y) {
     const s = this.getState();
+
+    // Eyedropper — pick color from cell
     if (s.activeTool === 'eyedropper') { s.selectColorFromCell(x, y); return; }
-    if (s.activeTool === 'eraser') { s.setStitchDone(x, y, false); return; }
+
+    // Bucket — flood fill with selected color
     if (s.activeTool === 'bucket') { if (s.activeColorId) s.floodFill(x, y); return; }
 
-    // Pencil with color = paint; pencil/none = toggle stitch done
-    const isPencilPaint = s.activeTool === 'pencil' && s.activeColorId;
-    if (isPencilPaint) { s.paintCell(x, y); return; }
+    // Pencil — paint selected color only; does nothing if no color selected
+    if (s.activeTool === 'pencil') {
+      if (s.activeColorId) s.paintCell(x, y);
+      return;
+    }
 
-    // Stitch toggle — during a drag, lock to the first cell's intent
-    // so dragging back over a cell doesn't flip it again
-    const idx = y * s.pattern.width + x;
-    if (this.isPainting && this.paintIntent !== null) {
-      // Only act if this cell matches the intended direction
+    // Marker — toggle done/undone for selected color only; does nothing if no color selected
+    if (s.activeTool === 'marker') {
+      if (!s.activeColorId) return;
+      const idx = y * s.pattern.width + x;
+      const cellColorId = s.pattern.palette[s.pattern.matrix[idx]]?.id;
+      if (cellColorId !== s.activeColorId) return; // only mark stitches of selected color
       const currentlyDone = s.doneStitches[idx] === 1;
-      if (this.paintIntent === 'mark' && !currentlyDone) s.setStitchDone(x, y, true);
-      if (this.paintIntent === 'unmark' && currentlyDone) s.setStitchDone(x, y, false);
-    } else {
-      // First cell of the drag — determine intent from current state
-      const currentlyDone = s.doneStitches[idx] === 1;
-      this.paintIntent = currentlyDone ? 'unmark' : 'mark';
-      s.setStitchDone(x, y, !currentlyDone);
+      // Lock drag direction on first cell so dragging back doesn't flip
+      if (this.isPainting && this.paintIntent !== null) {
+        if (this.paintIntent === 'mark' && !currentlyDone) s.setStitchDone(x, y, true);
+        if (this.paintIntent === 'unmark' && currentlyDone) s.setStitchDone(x, y, false);
+      } else {
+        this.paintIntent = currentlyDone ? 'unmark' : 'mark';
+        s.setStitchDone(x, y, !currentlyDone);
+      }
+      return;
     }
   }
 

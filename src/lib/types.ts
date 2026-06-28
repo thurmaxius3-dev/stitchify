@@ -29,7 +29,7 @@ export interface ActiveProject {
 }
 
 export type TabId = 'edit' | 'palette' | 'view' | 'share';
-export type ToolId = 'eraser' | 'eyedropper' | 'pencil' | 'wand' | 'bucket';
+export type ToolId = 'marker' | 'eyedropper' | 'pencil' | 'wand' | 'bucket';
 export type ViewMode = 'solid' | 'symbol-color' | 'chart';
 export type GridMode = 'none' | 'light' | 'heavy' | 'red' | 'combined';
 export type SymbolStyle = 'x' | 'circle';
