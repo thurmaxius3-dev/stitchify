@@ -19,6 +19,7 @@ export interface PaletteEntry {
 
 export interface ActiveProject {
   name: string;
+  readOnly?: boolean;
   width: number;
   height: number;
   colorSystem: string;
