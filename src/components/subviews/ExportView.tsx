@@ -6,6 +6,7 @@ import { createShareLink, supabase } from '../../lib/supabase';
 export default function ExportView() {
   const exportPng    = useStore((s) => s.exportPng);
   const exportJson   = useStore((s) => s.exportJson);
+  const exportPdf    = useStore((s) => s.exportPdf);
   const pattern      = useStore((s) => s.pattern);
   const activeProject = useStore((s) => s.activeProject);
   const doneStitches = useStore((s) => s.doneStitches);
@@ -54,6 +55,7 @@ export default function ExportView() {
   }
 
   const [pngCell, setPngCell]     = useState(4);
+  const [pdfCell, setPdfCell]     = useState(12);
   const [showDone, setShowDone]   = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
 
@@ -75,6 +77,29 @@ export default function ExportView() {
       setExporting(null);
     }, 50);
   }
+
+  async function doExportPdf() {
+    setExporting('pdf');
+    // Yield to let UI update before heavy work
+    await new Promise((r) => setTimeout(r, 60));
+    try {
+      await exportPdf(pdfCell, showDone);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  const pdfPageEst = (() => {
+    const MM_PER_PX = 0.264583;
+    const cellMm = pdfCell * MM_PER_PX;
+    const usableW = 297 - 20;
+    const usableH = 210 - 20 - 14;
+    const cPerPage = Math.floor(usableW / cellMm);
+    const rPerPage = Math.floor(usableH / cellMm);
+    const h = Math.ceil(pattern.width / cPerPage);
+    const v = Math.ceil(pattern.height / rPerPage);
+    return h * v + 1; // +1 for legend
+  })();
 
   return (
     <div className="subview-overlay">
@@ -165,6 +190,52 @@ export default function ExportView() {
                 {hoursLeft > 24 && ` = ${days}d ${hours}h`}
               </div>
             </div>
+          </section>
+
+          <hr className="border-gray-200" />
+
+          {/* ── PDF Export ────────────────── */}
+          <section className="export-section">
+            <h3 className="export-section-title">Export as PDF</h3>
+            <p className="export-section-desc">
+              Printable pattern chart — each stitch is one cell with its symbol,
+              plus a color legend. A4 landscape, multiple pages for large patterns.
+            </p>
+
+            <div className="flex items-center gap-3 mt-3">
+              <label className="text-sm text-gray-600 flex-shrink-0">Cell size</label>
+              <input
+                type="range" min={8} max={20} step={2}
+                value={pdfCell}
+                onChange={(e) => setPdfCell(Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-sm font-mono w-8 text-center">{pdfCell}px</span>
+            </div>
+
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                id="pdf-show-done"
+                type="checkbox"
+                checked={showDone}
+                onChange={(e) => setShowDone(e.target.checked)}
+              />
+              <label htmlFor="pdf-show-done" className="text-sm text-gray-600 cursor-pointer">
+                Mark completed stitches
+              </label>
+            </div>
+
+            <p className="text-xs text-gray-400 mt-1">
+              Est. {pdfPageEst} page{pdfPageEst !== 1 ? 's' : ''} &nbsp;· {pattern.width}×{pattern.height} stitches
+            </p>
+
+            <button
+              className="btn-primary mt-3 w-full"
+              onClick={doExportPdf}
+              disabled={!!exporting}
+            >
+              {exporting === 'pdf' ? 'Generating PDF…' : 'Download PDF'}
+            </button>
           </section>
 
           <hr className="border-gray-200" />

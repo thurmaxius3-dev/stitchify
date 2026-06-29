@@ -161,6 +161,7 @@ export interface StitchifyState {
   setCloudSync: (enabled: boolean) => void;
   exportPng: (cellSize?: number, showDone?: boolean) => void;
   exportJson: () => void;
+  exportPdf: (cellSize?: number, showDone?: boolean) => Promise<void>;
   // Sections
   sections: PatternSection[];
   addSection: (section: Omit<PatternSection, 'id'>) => void;
@@ -714,6 +715,167 @@ export const useStore = create<StitchifyState>((set, get) => ({
     a.download = `${activeProject?.name ?? 'pattern'}.stitch.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+  },
+
+  exportPdf: async (cellSize = 12, showDone = true) => {
+    const { pattern, doneStitches, activeProject, projectPalette, symbolMap } = get();
+    const { width, height, matrix } = pattern;
+    const name = activeProject?.name ?? 'pattern';
+
+    const { jsPDF } = await import('jspdf');
+
+    const PAGE_W_MM = 297;
+    const PAGE_H_MM = 210;
+    const MARGIN_MM = 10;
+    const HEADER_MM = 14;
+    const MM_PER_PX = 0.264583;
+
+    const cellMm = cellSize * MM_PER_PX;
+    const usableW = PAGE_W_MM - MARGIN_MM * 2;
+    const usableH = PAGE_H_MM - MARGIN_MM * 2 - HEADER_MM;
+    const colsPerPage = Math.floor(usableW / cellMm);
+    const rowsPerPage = Math.floor(usableH / cellMm);
+
+    const colorUsage = new Map<string, number>();
+    for (let i = 0; i < matrix.length; i++) {
+      const c = DMC_LIBRARY[matrix[i]];
+      if (c) colorUsage.set(c.id, (colorUsage.get(c.id) ?? 0) + 1);
+    }
+    const usedColors = projectPalette
+      .filter((e) => colorUsage.has(e.color.id))
+      .sort((a, b) => (colorUsage.get(b.color.id) ?? 0) - (colorUsage.get(a.color.id) ?? 0));
+
+    function renderTile(
+      startCol: number, startRow: number,
+      cols: number, rows: number
+    ): HTMLCanvasElement {
+      const cvs = document.createElement('canvas');
+      cvs.width  = cols * cellSize;
+      cvs.height = rows * cellSize;
+      const ctx = cvs.getContext('2d')!;
+      for (let ry = 0; ry < rows; ry++) {
+        const py = startRow + ry;
+        if (py >= height) break;
+        for (let rx = 0; rx < cols; rx++) {
+          const px = startCol + rx;
+          if (px >= width) continue;
+          const idx = py * width + px;
+          const dmcIdx = matrix[idx];
+          const color = DMC_LIBRARY[dmcIdx];
+          const isDone = doneStitches[idx] === 1;
+          ctx.fillStyle = color?.hex ?? '#cccccc';
+          ctx.fillRect(rx * cellSize, ry * cellSize, cellSize, cellSize);
+          if (cellSize >= 8) {
+            const sym = symbolMap.get(dmcIdx) ?? '·';
+            const fontSize = Math.max(6, cellSize - 4);
+            ctx.font = `${fontSize}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const hex = color?.hex ?? '#888888';
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            ctx.fillStyle = lum > 160 ? '#000000' : '#ffffff';
+            ctx.fillText(sym, rx * cellSize + cellSize / 2, ry * cellSize + cellSize / 2);
+          }
+          if (showDone && isDone && cellSize >= 6) {
+            ctx.strokeStyle = 'rgba(80,80,80,0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(rx * cellSize + 1, ry * cellSize + 1);
+            ctx.lineTo((rx + 1) * cellSize - 1, (ry + 1) * cellSize - 1);
+            ctx.moveTo((rx + 1) * cellSize - 1, ry * cellSize + 1);
+            ctx.lineTo(rx * cellSize + 1, (ry + 1) * cellSize - 1);
+            ctx.stroke();
+          }
+          ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(rx * cellSize + 0.25, ry * cellSize + 0.25, cellSize - 0.5, cellSize - 0.5);
+        }
+      }
+      return cvs;
+    }
+
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    let pageNum = 0;
+    const hPageCount = Math.ceil(width / colsPerPage);
+    const vPageCount = Math.ceil(height / rowsPerPage);
+    const totalPages = hPageCount * vPageCount;
+
+    for (let vp = 0; vp < vPageCount; vp++) {
+      for (let hp = 0; hp < hPageCount; hp++) {
+        if (pageNum > 0) pdf.addPage();
+        pageNum++;
+        const startCol = hp * colsPerPage;
+        const startRow = vp * rowsPerPage;
+        const cols = Math.min(colsPerPage, width - startCol);
+        const rows = Math.min(rowsPerPage, height - startRow);
+        pdf.setFontSize(9);
+        pdf.setTextColor(30, 30, 30);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(name, MARGIN_MM, MARGIN_MM + 5);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `${width}×${height} stitches  ·  cols ${startCol + 1}–${startCol + cols}  ·  rows ${startRow + 1}–${startRow + rows}  ·  page ${pageNum}/${totalPages}`,
+          MARGIN_MM, MARGIN_MM + 10
+        );
+        const tile = renderTile(startCol, startRow, cols, rows);
+        const tileMmW = cols * cellMm;
+        const tileMmH = rows * cellMm;
+        pdf.addImage(tile.toDataURL('image/png'), 'PNG', MARGIN_MM, MARGIN_MM + HEADER_MM, tileMmW, tileMmH);
+      }
+    }
+
+    // Legend page
+    pdf.addPage();
+    pdf.setFontSize(11);
+    pdf.setTextColor(30, 30, 30);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Color Legend', MARGIN_MM, MARGIN_MM + 8);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(80, 80, 80);
+    pdf.text(`${usedColors.length} colors  ·  ${width}×${height}  ·  ${(width * height).toLocaleString()} total stitches`, MARGIN_MM, MARGIN_MM + 14);
+
+    const LEGEND_ROWS = 8;
+    const COL_W = 60;
+    const ROW_H = 7;
+    const SWATCH = 5;
+    const LEG_START_Y = MARGIN_MM + 20;
+    const COLS_PER_ROW = Math.floor(usableW / COL_W);
+
+    usedColors.forEach((entry, i) => {
+      const posInPage = i % (LEGEND_ROWS * COLS_PER_ROW);
+      if (i > 0 && posInPage === 0) {
+        pdf.addPage();
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(30, 30, 30);
+        pdf.text('Color Legend (continued)', MARGIN_MM, MARGIN_MM + 8);
+      }
+      const col = Math.floor(posInPage / LEGEND_ROWS) % COLS_PER_ROW;
+      const row = posInPage % LEGEND_ROWS;
+      const x = MARGIN_MM + col * COL_W;
+      const y = LEG_START_Y + row * ROW_H;
+      const hex = entry.color.hex;
+      pdf.setFillColor(parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16));
+      pdf.setDrawColor(180, 180, 180);
+      pdf.rect(x, y - SWATCH + 1, SWATCH, SWATCH, 'FD');
+      const dmcIdx = DMC_LIBRARY.findIndex((c) => c.id === entry.color.id);
+      const sym = symbolMap.get(dmcIdx) ?? '·';
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(30, 30, 30);
+      pdf.text(sym, x + SWATCH + 1.5, y);
+      const cnt = colorUsage.get(entry.color.id) ?? 0;
+      pdf.setFontSize(6.5);
+      pdf.text(`${entry.color.code}  ${entry.color.name}  (${cnt.toLocaleString()})`, x + SWATCH + 7, y);
+    });
+
+    pdf.save(`${name}.pdf`);
   },
 }));
 
