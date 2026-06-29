@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore, totalStitches } from '../../store';
 import SubviewHeader from './SubviewHeader';
+import ProGate from '../ProGate';
 import { createShareLink, supabase } from '../../lib/supabase';
 
 export default function ExportView() {
@@ -197,6 +198,7 @@ export default function ExportView() {
           {/* ── PDF Export ────────────────── */}
           <section className="export-section">
             <h3 className="export-section-title">Export as PDF</h3>
+            <ProGate feature="PDF export">
             <p className="export-section-desc">
               Printable pattern chart — each stitch is one cell with its symbol,
               plus a color legend. A4 landscape, multiple pages for large patterns.
@@ -236,6 +238,7 @@ export default function ExportView() {
             >
               {exporting === 'pdf' ? 'Generating PDF…' : 'Download PDF'}
             </button>
+            </ProGate>
           </section>
 
           <hr className="border-gray-200" />

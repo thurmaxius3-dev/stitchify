@@ -13,6 +13,7 @@ import ExportView from './components/subviews/ExportView';
 import { useEffect } from 'react';
 import { fetchSharedPattern } from './lib/supabase';
 import OnboardingTour from './components/OnboardingTour';
+import UpgradeView from './components/subviews/UpgradeView';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -79,6 +80,7 @@ export default function App() {
       {activeSubview === 'calculator' && <CalculatorView />}
       {activeSubview === 'settings' && <SettingsView />}
       {activeSubview === 'export-pattern' && <ExportView />}
+      {activeSubview === 'upgrade-pro' && <UpgradeView />}
     </div>
   );
 }

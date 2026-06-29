@@ -104,6 +104,11 @@ export interface StitchifyState {
   doneVersion: number;
   hasSeenOnboarding: boolean;
   dismissOnboarding: () => void;
+  // Pro tier
+  isPro: boolean;
+  openUpgradeModal: (featureName?: string) => void;
+  activateProPreview: () => void; // dev/demo helper — grants pro without payment
+  proFeatureContext: string | null; // which feature triggered the upgrade modal
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
 
@@ -212,6 +217,15 @@ export const useStore = create<StitchifyState>((set, get) => ({
   dismissOnboarding: () => {
     localStorage.setItem('stitchify_onboarded', '1');
     set({ hasSeenOnboarding: true });
+  },
+  isPro: localStorage.getItem('stitchify_pro') === '1',
+  proFeatureContext: null,
+  openUpgradeModal: (featureName) => {
+    set({ activeSubview: 'upgrade-pro', proFeatureContext: featureName ?? null });
+  },
+  activateProPreview: () => {
+    localStorage.setItem('stitchify_pro', '1');
+    set({ isPro: true, activeSubview: null });
   },
   undoStack: [],
   redoStack: [],

@@ -52,6 +52,7 @@ export type SubviewId =
   | 'calculator'
   | 'settings'
   | 'export-pattern'
+  | 'upgrade-pro'
   | null;
 
 export interface FabricPreset {

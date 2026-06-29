@@ -43,7 +43,10 @@ function commitDimensions(
 }
 
 export default function NewPattern() {
-  const applyPattern = useStore((s) => s.applyPattern);
+  const applyPattern      = useStore((s) => s.applyPattern);
+  const isPro             = useStore((s) => s.isPro);
+  const savedProjects     = useStore((s) => s.savedProjects);
+  const openUpgradeModal  = useStore((s) => s.openUpgradeModal);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -130,6 +133,11 @@ export default function NewPattern() {
         maxColors,
         dithering,
       });
+      if (!isPro && savedProjects.length >= 3) {
+        openUpgradeModal('Unlimited projects');
+        setConverting(false);
+        return;
+      }
       applyPattern(pattern, { name: 'New Pattern', total: pattern.width * pattern.height, stitched: 0, progress: 0 });
     } catch {
       setStatus({ msg: 'Conversion failed. Try a different image.', error: true });

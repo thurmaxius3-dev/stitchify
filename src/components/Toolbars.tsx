@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import ProGate from './ProGate';
 import type { GridMode } from '../lib/types';
 import {
   MarkerIcon,
@@ -34,17 +35,27 @@ export function EditToolbar() {
 
   return (
     <div className="bg-toolbar-bg border-b border-gray-300 flex items-center gap-1 px-2 py-1 flex-shrink-0">
-      {tools.map(({ id, label, Icon }) => (
-        <button
-          key={id}
-          type="button"
-          className={`tool-btn${activeTool === id ? ' active' : ''}`}
-          title={label}
-          onClick={() => setTool(id)}
-        >
-          <Icon className="w-5 h-5" />
-        </button>
-      ))}
+      {tools.map(({ id, label, Icon }) => {
+        const btn = (
+          <button
+            key={id}
+            type="button"
+            className={`tool-btn${activeTool === id ? ' active' : ''}`}
+            title={label}
+            onClick={() => setTool(id)}
+          >
+            <Icon className="w-5 h-5" />
+          </button>
+        );
+        if (id === 'section') {
+          return (
+            <ProGate key={id} feature="Section marking" mode="badge">
+              {btn}
+            </ProGate>
+          );
+        }
+        return btn;
+      })}
       <div className="w-px h-6 bg-gray-400 mx-1" />
       <button type="button" className="tool-btn" title="Undo" disabled={!canUndo} onClick={undo}>
         <UndoIcon className="w-5 h-5" />
