@@ -390,8 +390,42 @@ export class CanvasRenderer {
     }
 
     this.drawGrid(ctx, width, height, cell, gridMode, bounds);
+
+    // Draw section overlays
+    this.drawSections(ctx, cell, s.sections ?? []);
+
     ctx.restore();
     this.updateRulers();
+  }
+
+  drawSections(ctx: CanvasRenderingContext2D, cell: number, sections: import('../lib/types').PatternSection[]) {
+    if (!sections.length) return;
+    ctx.save();
+    for (const sec of sections) {
+      const px = sec.x * cell;
+      const py = sec.y * cell;
+      const pw = sec.w * cell;
+      const ph = sec.h * cell;
+      // Semi-transparent fill
+      ctx.fillStyle = sec.color + '22'; // ~13% opacity
+      ctx.fillRect(px, py, pw, ph);
+      // Border
+      ctx.strokeStyle = sec.color;
+      ctx.lineWidth = Math.max(1.5, cell * 0.1);
+      ctx.setLineDash([cell * 0.4, cell * 0.2]);
+      ctx.strokeRect(px + ctx.lineWidth / 2, py + ctx.lineWidth / 2, pw - ctx.lineWidth, ph - ctx.lineWidth);
+      ctx.setLineDash([]);
+      // Label
+      if (cell >= 3) {
+        const fontSize = Math.max(10, Math.min(cell * 1.5, 18));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = sec.color;
+        ctx.globalAlpha = 0.9;
+        ctx.fillText(sec.name, px + 4, py + fontSize + 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
   }
 
   drawCellMark(ctx, opts) {

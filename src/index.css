@@ -310,6 +310,16 @@ body {
   z-index: 1;
 }
 
+/* Section rubber-band overlay */
+.section-rubber-band {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed;
+  background: transparent;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
 /* Export view */
 .export-section-title {
   font-size: 0.875rem;

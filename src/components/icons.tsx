@@ -115,8 +115,12 @@ export const SettingsIcon = (p: IconProps) => (
 );
 
 export const PlusIcon = (p: IconProps) => stroke(p, 'M12 5v14M5 12h14');
+export const SectionIcon = (p: IconProps) => stroke(p, 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z');
 
 // Marker tool — cross-stitch X mark inside a circle
+export const TrashIcon = (p: IconProps) => stroke(p, 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6');
+export const TargetIcon = (p: IconProps) => stroke(p, 'M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0M12 2v2M12 20v2M2 12h2M20 12h2');
+
 export const MarkerIcon = (p: IconProps) => (
   <svg {...p} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="9" />

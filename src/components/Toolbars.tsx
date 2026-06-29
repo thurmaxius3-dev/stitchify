@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import type { GridMode } from '../lib/types';
 import {
   MarkerIcon,
+  SectionIcon,
   EyedropperIcon,
   PencilIcon,
   WandIcon,
@@ -27,6 +28,7 @@ export function EditToolbar() {
     { id: 'bucket',     label: 'Fill bucket — flood fill connected region',           Icon: BucketIcon },
     { id: 'marker',     label: 'Marker — mark/unmark done stitches of selected color', Icon: MarkerIcon },
     { id: 'eyedropper', label: 'Eye dropper — pick color from cell',                  Icon: EyedropperIcon },
+    { id: 'section',    label: 'Section — draw a named zone on the pattern',           Icon: SectionIcon },
     { id: 'wand',       label: 'Magic Wand',                                          Icon: WandIcon },
   ] as const;
 

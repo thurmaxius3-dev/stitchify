@@ -8,6 +8,7 @@ import type {
   MockProject,
   Pattern,
   PaletteEntry,
+  PatternSection,
   SubviewId,
   SymbolStyle,
   TabId,
@@ -160,6 +161,12 @@ export interface StitchifyState {
   setCloudSync: (enabled: boolean) => void;
   exportPng: (cellSize?: number, showDone?: boolean) => void;
   exportJson: () => void;
+  // Sections
+  sections: PatternSection[];
+  addSection: (section: Omit<PatternSection, 'id'>) => void;
+  updateSection: (id: string, patch: Partial<Omit<PatternSection, 'id'>>) => void;
+  deleteSection: (id: string) => void;
+  jumpToSection: (id: string) => void;
 }
 
 // Minimal blank pattern — just a placeholder until a real project loads
@@ -194,6 +201,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
   activeColorId: null,
   zoom: 1,
   cellSize: PatternEngine.computeCellSize(defaultPattern.width, defaultPattern.height) as number,
+  sections: [] as PatternSection[],
 
   doneStitches: new Uint8Array(defaultPattern.width * defaultPattern.height),
   doneVersion: 0,
@@ -602,6 +610,43 @@ export const useStore = create<StitchifyState>((set, get) => ({
     set({ cloudSyncEnabled: enabled });
     setCloudUser(cloudUser?.id ?? null, enabled);
     localStorage.setItem('stitchify-cloud-sync', enabled ? '1' : '0');
+  },
+
+  // ── Section actions ──────────────────────────────────────────────────
+  addSection: (section) => {
+    const id = `sec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    set((s) => ({ sections: [...s.sections, { ...section, id }] }));
+  },
+
+  updateSection: (id, patch) => {
+    set((s) => ({
+      sections: s.sections.map((sec) => sec.id === id ? { ...sec, ...patch } : sec),
+    }));
+  },
+
+  deleteSection: (id) => {
+    set((s) => ({ sections: s.sections.filter((sec) => sec.id !== id) }));
+  },
+
+  jumpToSection: (id) => {
+    const { sections, cellSize } = get();
+    const sec = sections.find((s) => s.id === id);
+    if (!sec) return;
+    // Calculate zoom so section fills the scroll container
+    const scrollEl = document.querySelector('.canvas-scroll') as HTMLElement | null;
+    if (!scrollEl) return;
+    const vpW = scrollEl.clientWidth;
+    const vpH = scrollEl.clientHeight;
+    const zoomW = vpW / (sec.w * cellSize);
+    const zoomH = vpH / (sec.h * cellSize);
+    const newZoom = Math.min(zoomW, zoomH, 8); // cap at 8x
+    set({ zoom: Math.max(0.25, newZoom) });
+    // After zoom applied, scroll so section is top-left of viewport
+    requestAnimationFrame(() => {
+      const cell = cellSize * newZoom;
+      scrollEl.scrollLeft = sec.x * cell;
+      scrollEl.scrollTop  = sec.y * cell;
+    });
   },
 
   exportPng: (cellSize = 4, showDone = true) => {

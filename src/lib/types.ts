@@ -30,7 +30,17 @@ export interface ActiveProject {
 }
 
 export type TabId = 'edit' | 'palette' | 'view' | 'share';
-export type ToolId = 'marker' | 'eyedropper' | 'pencil' | 'wand' | 'bucket';
+export type ToolId = 'marker' | 'eyedropper' | 'pencil' | 'wand' | 'bucket' | 'section';
+
+export interface PatternSection {
+  id: string;
+  name: string;
+  x: number;   // column (0-based)
+  y: number;   // row (0-based)
+  w: number;   // width in stitches
+  h: number;   // height in stitches
+  color: string; // hex color for the overlay
+}
 export type ViewMode = 'solid' | 'symbol-color' | 'chart';
 export type GridMode = 'none' | 'light' | 'heavy' | 'red' | 'combined';
 export type SymbolStyle = 'x' | 'circle';
