@@ -10,6 +10,8 @@ import ThreadsLibrary from './components/subviews/ThreadsLibrary';
 import CalculatorView from './components/subviews/CalculatorView';
 import SettingsView from './components/subviews/SettingsView';
 import ExportView from './components/subviews/ExportView';
+import { useEffect } from 'react';
+import { fetchSharedPattern } from './lib/supabase';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -33,6 +35,27 @@ function ProgressFooter() {
 export default function App() {
   const activeTab = useStore((s) => s.activeTab);
   const activeSubview = useStore((s) => s.activeSubview);
+  const applyPattern = useStore((s) => s.applyPattern);
+
+  // Handle ?share=<id> URL param — load shared pattern as read-only view
+  useEffect(() => {
+    const shareId = new URLSearchParams(window.location.search).get('share');
+    if (!shareId) return;
+    fetchSharedPattern(shareId).then((data) => {
+      if (!data) return;
+      const pattern = {
+        width: data.width,
+        height: data.height,
+        matrix: new Uint16Array(data.matrix),
+        activeDmcIndices: data.active_dmc_indices ?? null,
+        originX: 0,
+        originY: 0,
+      };
+      applyPattern(pattern, { name: data.name, readOnly: true });
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname);
+    });
+  }, []);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

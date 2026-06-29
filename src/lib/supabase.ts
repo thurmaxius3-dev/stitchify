@@ -161,3 +161,42 @@ export async function deleteCloudProject(id: string): Promise<void> {
   if (!supabase) return;
   await supabase.from('projects').delete().eq('id', id);
 }
+
+// ─── Share links ─────────────────────────────────────────────────────────────────────
+
+export async function createShareLink(project: {
+  name: string;
+  width: number;
+  height: number;
+  matrix: number[];
+  activeDmcIndices: number[] | null;
+}): Promise<string | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('shared_patterns')
+    .insert({
+      name: project.name,
+      width: project.width,
+      height: project.height,
+      matrix: project.matrix,
+      active_dmc_indices: project.activeDmcIndices,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error('[Stitchify] Share link creation failed:', error.message);
+    return null;
+  }
+  return data.id as string;
+}
+
+export async function fetchSharedPattern(id: string) {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('shared_patterns')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) return null;
+  return data;
+}

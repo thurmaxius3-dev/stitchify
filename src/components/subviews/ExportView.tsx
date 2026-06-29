@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore, totalStitches } from '../../store';
 import SubviewHeader from './SubviewHeader';
+import { createShareLink, supabase } from '../../lib/supabase';
 
 export default function ExportView() {
   const exportPng    = useStore((s) => s.exportPng);
@@ -11,7 +12,30 @@ export default function ExportView() {
   const total        = useStore(totalStitches);
   useStore((s) => s.doneVersion); // re-render on progress change
 
-  const [stitchRate, setStitchRate] = useState(150); // stitches per hour default
+  const [stitchRate, setStitchRate]   = useState(150);
+  const [shareUrl, setShareUrl]       = useState<string | null>(null);
+  const [shareState, setShareState]   = useState<'idle'|'loading'|'done'|'error'>('idle');
+  const hasSupabase = Boolean(supabase);
+
+  async function doCreateShareLink() {
+    setShareState('loading');
+    setShareUrl(null);
+    const id = await createShareLink({
+      name: activeProject?.name ?? 'pattern',
+      width: pattern.width,
+      height: pattern.height,
+      matrix: Array.from(pattern.matrix),
+      activeDmcIndices: pattern.activeDmcIndices ?? null,
+    });
+    if (id) {
+      const url = `${window.location.origin}/?share=${id}`;
+      setShareUrl(url);
+      setShareState('done');
+      navigator.clipboard?.writeText(url).catch(() => {});
+    } else {
+      setShareState('error');
+    }
+  }
 
   let doneCount = 0;
   for (let i = 0; i < doneStitches.length; i++) doneCount += doneStitches[i];
@@ -161,6 +185,53 @@ export default function ExportView() {
             >
               {exporting === 'json' ? 'Saving…' : `Save "${activeProject?.name ?? 'pattern'}.stitch.json"`}
             </button>
+          </section>
+
+          <hr className="border-gray-200" />
+
+          {/* ── Share Link ────────────────────────────────── */}
+          <section className="export-section">
+            <h3 className="export-section-title">Share Pattern</h3>
+            <p className="export-section-desc">
+              Generate a read-only link anyone can open to view your pattern
+              (without progress). Requires internet.
+            </p>
+            {!hasSupabase && (
+              <p className="text-xs text-amber-600 mt-2">
+                Cloud not configured — share links unavailable offline.
+              </p>
+            )}
+            {hasSupabase && (
+              <button
+                className="btn-primary mt-3 w-full"
+                onClick={doCreateShareLink}
+                disabled={shareState === 'loading'}
+              >
+                {shareState === 'loading' ? 'Creating link…' : 'Create share link'}
+              </button>
+            )}
+            {shareState === 'done' && shareUrl && (
+              <div className="mt-3">
+                <p className="text-xs text-green-600 mb-1">Link copied to clipboard!</p>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={shareUrl}
+                    className="flex-1 text-xs border rounded px-2 py-1 bg-gray-50 font-mono"
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    className="btn-secondary text-xs px-3"
+                    onClick={() => navigator.clipboard?.writeText(shareUrl)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+            {shareState === 'error' && (
+              <p className="text-xs text-red-500 mt-2">Failed to create link. Check your connection.</p>
+            )}
           </section>
 
         </div>
