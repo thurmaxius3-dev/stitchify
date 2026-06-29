@@ -40,6 +40,7 @@ export type SubviewId =
   | 'threads-library'
   | 'calculator'
   | 'settings'
+  | 'export-pattern'
   | null;
 
 export interface FabricPreset {

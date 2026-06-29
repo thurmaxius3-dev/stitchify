@@ -158,6 +158,8 @@ export interface StitchifyState {
   refreshSavedProjects: () => Promise<void>;
   triggerAutoSave: () => void;
   setCloudSync: (enabled: boolean) => void;
+  exportPng: (cellSize?: number, showDone?: boolean) => void;
+  exportJson: () => void;
 }
 
 // Minimal blank pattern — just a placeholder until a real project loads
@@ -600,6 +602,73 @@ export const useStore = create<StitchifyState>((set, get) => ({
     set({ cloudSyncEnabled: enabled });
     setCloudUser(cloudUser?.id ?? null, enabled);
     localStorage.setItem('stitchify-cloud-sync', enabled ? '1' : '0');
+  },
+
+  exportPng: (cellSize = 4, showDone = true) => {
+    const { pattern, doneStitches, activeProject } = get();
+    const { width, height, matrix } = pattern;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = width * cellSize;
+    offscreen.height = height * cellSize;
+    const ctx = offscreen.getContext('2d')!;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        const color = DMC_LIBRARY[matrix[idx]];
+        ctx.fillStyle = color.hex;
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        if (showDone && doneStitches[idx] === 1 && cellSize >= 4) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+          ctx.lineWidth = Math.max(1, cellSize * 0.18);
+          const pad = cellSize * 0.2;
+          ctx.beginPath();
+          ctx.moveTo(x * cellSize + pad, y * cellSize + pad);
+          ctx.lineTo(x * cellSize + cellSize - pad, y * cellSize + cellSize - pad);
+          ctx.moveTo(x * cellSize + cellSize - pad, y * cellSize + pad);
+          ctx.lineTo(x * cellSize + pad, y * cellSize + cellSize - pad);
+          ctx.stroke();
+        }
+      }
+    }
+    if (cellSize >= 3) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx <= width; gx += 10) {
+        ctx.beginPath(); ctx.moveTo(gx * cellSize, 0); ctx.lineTo(gx * cellSize, height * cellSize); ctx.stroke();
+      }
+      for (let gy = 0; gy <= height; gy += 10) {
+        ctx.beginPath(); ctx.moveTo(0, gy * cellSize); ctx.lineTo(width * cellSize, gy * cellSize); ctx.stroke();
+      }
+    }
+    offscreen.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${activeProject?.name ?? 'pattern'}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }, 'image/png');
+  },
+
+  exportJson: () => {
+    const { pattern, doneStitches, activeProject } = get();
+    const data = {
+      name: activeProject?.name ?? 'pattern',
+      width: pattern.width,
+      height: pattern.height,
+      matrix: Array.from(pattern.matrix),
+      doneMatrix: Array.from(doneStitches),
+      activeDmcIndices: pattern.activeDmcIndices ?? null,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeProject?.name ?? 'pattern'}.stitch.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   },
 }));
 

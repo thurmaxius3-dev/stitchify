@@ -9,6 +9,7 @@ import ImportPattern from './components/subviews/ImportPattern';
 import ThreadsLibrary from './components/subviews/ThreadsLibrary';
 import CalculatorView from './components/subviews/CalculatorView';
 import SettingsView from './components/subviews/SettingsView';
+import ExportView from './components/subviews/ExportView';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -52,6 +53,7 @@ export default function App() {
       {activeSubview === 'threads-library' && <ThreadsLibrary />}
       {activeSubview === 'calculator' && <CalculatorView />}
       {activeSubview === 'settings' && <SettingsView />}
+      {activeSubview === 'export-pattern' && <ExportView />}
     </div>
   );
 }

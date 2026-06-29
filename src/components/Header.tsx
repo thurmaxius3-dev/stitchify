@@ -52,6 +52,7 @@ export default function Header() {
   const set = useStore((s) => s.set);
   const pattern = useStore((s) => s.pattern);
   const paletteLen = useStore((s) => s.projectPalette.length);
+  const openSubview = useStore((s) => s.openSubview);
 
   useEffect(() => {
     if (!paletteOpen) return;
@@ -140,7 +141,7 @@ export default function Header() {
           type="button"
           className="header-tab"
           aria-label="Share"
-          onClick={() => alert('Share: export as PDF, PNG or link (coming soon).')}
+          onClick={() => openSubview('export-pattern')}
         >
           <ShareIcon className="w-5 h-5" />
         </button>
