@@ -14,6 +14,8 @@ import { useEffect } from 'react';
 import { fetchSharedPattern } from './lib/supabase';
 import OnboardingTour from './components/OnboardingTour';
 import UpgradeView from './components/subviews/UpgradeView';
+import { StreakView } from './components/subviews/StreakView';
+import { MilestoneToast } from './components/MilestoneToast';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -81,6 +83,8 @@ export default function App() {
       {activeSubview === 'settings' && <SettingsView />}
       {activeSubview === 'export-pattern' && <ExportView />}
       {activeSubview === 'upgrade-pro' && <UpgradeView />}
+      {activeSubview === 'streak-goals' && <StreakView />}
+      <MilestoneToast />
     </div>
   );
 }

@@ -608,3 +608,9 @@ input[type="range"] {
   border: 1px solid rgba(0,0,0,0.08);
   flex-shrink: 0;
 }
+
+/* ── Milestone toast animation ─────────────────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}

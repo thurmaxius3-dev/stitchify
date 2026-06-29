@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { CanvasRenderer } from '../lib/canvasRenderer';
+import { StreakWidget } from './StreakWidget';
 
 function WelcomeScreen() {
   const openSubview    = useStore((s) => s.openSubview);
@@ -55,6 +56,9 @@ function WelcomeScreen() {
           Import .em file
         </button>
       </div>
+
+      {/* Streak widget — shows daily progress, taps into StreakView */}
+      <StreakWidget />
     </div>
   );
 }

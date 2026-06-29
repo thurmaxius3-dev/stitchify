@@ -24,6 +24,15 @@ import {
   type SavedProject,
 } from './lib/db';
 import { scheduleAutoSave, flushAutoSave, setCloudUser } from './lib/autoSave';
+import {
+  loadStreakData,
+  saveStreakData,
+  loadDailyGoal,
+  saveDailyGoal,
+  recordStitchDelta,
+  goalProgress,
+  type StreakData,
+} from './lib/streaks';
 import { supabase, onAuthStateChange } from './lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -109,6 +118,14 @@ export interface StitchifyState {
   openUpgradeModal: (featureName?: string) => void;
   activateProPreview: () => void; // dev/demo helper — grants pro without payment
   proFeatureContext: string | null; // which feature triggered the upgrade modal
+
+  // Streaks & goals (Pro)
+  streakData: StreakData;
+  dailyGoal: number;
+  streakMilestone: string | null;  // shown as toast, cleared after display
+  setDailyGoal: (n: number) => void;
+  clearStreakMilestone: () => void;
+  goalProgress: () => number;
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
 
@@ -226,6 +243,21 @@ export const useStore = create<StitchifyState>((set, get) => ({
   activateProPreview: () => {
     localStorage.setItem('stitchify_pro', '1');
     set({ isPro: true, activeSubview: null });
+  },
+
+  // Streaks
+  streakData: loadStreakData(),
+  dailyGoal: loadDailyGoal(),
+  streakMilestone: null,
+  setDailyGoal: (n) => {
+    const clamped = Math.max(1, n);
+    saveDailyGoal(clamped);
+    set({ dailyGoal: clamped });
+  },
+  clearStreakMilestone: () => set({ streakMilestone: null }),
+  goalProgress: () => {
+    const { streakData, dailyGoal } = get();
+    return goalProgress(streakData, dailyGoal);
   },
   undoStack: [],
   redoStack: [],
@@ -919,6 +951,18 @@ function applyDone(
   if (nextUndo.length > MAX_UNDO_HISTORY) nextUndo.shift();
   doneStitches[i] = to;
   set({ undoStack: nextUndo, redoStack: [], doneVersion: get().doneVersion + 1 });
+
+  // ── Streak tracking ──────────────────────────────────────────────────
+  const { isPro, streakData, dailyGoal } = get();
+  if (isPro) {
+    const delta = done ? 1 : -1;
+    const { data: newData, milestone } = recordStitchDelta(delta, streakData, dailyGoal);
+    saveStreakData(newData);
+    const patch: Partial<StitchifyState> = { streakData: newData };
+    if (milestone) patch.streakMilestone = milestone;
+    set(patch);
+  }
+
   get().triggerAutoSave();
 }
 

@@ -53,6 +53,7 @@ export type SubviewId =
   | 'settings'
   | 'export-pattern'
   | 'upgrade-pro'
+  | 'streak-goals'
   | null;
 
 export interface FabricPreset {
