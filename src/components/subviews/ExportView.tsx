@@ -1,12 +1,33 @@
 import { useState } from 'react';
-import { useStore } from '../../store';
+import { useStore, totalStitches } from '../../store';
 import SubviewHeader from './SubviewHeader';
 
 export default function ExportView() {
-  const exportPng   = useStore((s) => s.exportPng);
-  const exportJson  = useStore((s) => s.exportJson);
-  const pattern     = useStore((s) => s.pattern);
+  const exportPng    = useStore((s) => s.exportPng);
+  const exportJson   = useStore((s) => s.exportJson);
+  const pattern      = useStore((s) => s.pattern);
   const activeProject = useStore((s) => s.activeProject);
+  const doneStitches = useStore((s) => s.doneStitches);
+  const total        = useStore(totalStitches);
+  useStore((s) => s.doneVersion); // re-render on progress change
+
+  const [stitchRate, setStitchRate] = useState(150); // stitches per hour default
+
+  let doneCount = 0;
+  for (let i = 0; i < doneStitches.length; i++) doneCount += doneStitches[i];
+  const remaining = total - doneCount;
+  const hoursLeft = stitchRate > 0 ? remaining / stitchRate : 0;
+  const days = Math.floor(hoursLeft / 24);
+  const hours = Math.floor(hoursLeft % 24);
+  const pct = total > 0 ? ((doneCount / total) * 100).toFixed(1) : '0.0';
+
+  function fmtTime(h: number): string {
+    if (h <= 0) return 'Complete!';
+    const d = Math.floor(h / 24);
+    const hr = Math.floor(h % 24);
+    if (d > 0) return `~${d}d ${hr}h`;
+    return `~${hr}h`;
+  }
 
   const [pngCell, setPngCell]     = useState(4);
   const [showDone, setShowDone]   = useState(true);
@@ -79,6 +100,47 @@ export default function ExportView() {
             >
               {exporting === 'png' ? 'Generating…' : `Download PNG`}
             </button>
+          </section>
+
+          <hr className="border-gray-200" />
+
+          {/* ── Estimated Time ─────────────────────────────── */}
+          <section className="export-section">
+            <h3 className="export-section-title">Estimated Time Remaining</h3>
+
+            <div className="grid grid-cols-3 gap-2 mt-2 text-center">
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-teal-600">{doneCount.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Done</div>
+              </div>
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-gray-700">{remaining.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">Remaining</div>
+              </div>
+              <div className="bg-gray-50 rounded p-2">
+                <div className="text-lg font-bold text-gray-700">{pct}%</div>
+                <div className="text-xs text-gray-500">Complete</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-3">
+              <label className="text-sm text-gray-600 flex-shrink-0">My pace</label>
+              <input
+                type="range" min={10} max={500} step={10}
+                value={stitchRate}
+                onChange={(e) => setStitchRate(Number(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-sm font-mono w-16 text-right">{stitchRate}/hr</span>
+            </div>
+
+            <div className="mt-3 bg-teal-50 border border-teal-200 rounded p-3 text-center">
+              <div className="text-2xl font-bold text-teal-700">{fmtTime(hoursLeft)}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {remaining.toLocaleString()} stitches ÷ {stitchRate}/hr
+                {hoursLeft > 24 && ` = ${days}d ${hours}h`}
+              </div>
+            </div>
           </section>
 
           <hr className="border-gray-200" />
