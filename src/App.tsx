@@ -16,6 +16,7 @@ import OnboardingTour from './components/OnboardingTour';
 import UpgradeView from './components/subviews/UpgradeView';
 import { StreakView } from './components/subviews/StreakView';
 import { MilestoneToast } from './components/MilestoneToast';
+import { JournalView } from './components/subviews/JournalView';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -84,6 +85,7 @@ export default function App() {
       {activeSubview === 'export-pattern' && <ExportView />}
       {activeSubview === 'upgrade-pro' && <UpgradeView />}
       {activeSubview === 'streak-goals' && <StreakView />}
+      {activeSubview === 'wip-journal' && <JournalView />}
       <MilestoneToast />
     </div>
   );

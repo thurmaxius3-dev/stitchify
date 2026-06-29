@@ -8,6 +8,7 @@ import {
   PaletteIcon,
   EyeIcon,
   ShareIcon,
+  CameraIcon,
 } from './icons';
 import PaletteDropdown from './PaletteDropdown';
 import { onSaveStatus, type SaveStatus } from '../lib/autoSave';
@@ -135,6 +136,15 @@ export default function Header() {
           onClick={() => setTab('view')}
         >
           <EyeIcon className="w-5 h-5" />
+        </button>
+
+        <button
+          type="button"
+          className="header-tab"
+          aria-label="WIP Journal"
+          onClick={() => openSubview('wip-journal')}
+        >
+          <CameraIcon className="w-5 h-5" />
         </button>
 
         <button

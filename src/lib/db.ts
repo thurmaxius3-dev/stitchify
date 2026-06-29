@@ -6,9 +6,20 @@
  */
 
 const DB_NAME = 'stitchify';
-const DB_VERSION = 1;
+const DB_VERSION = 2;          // bumped for journal_entries store
 const STORE_PROJECTS = 'projects';
 const STORE_META = 'meta';
+const STORE_JOURNAL = 'journal_entries';
+
+// ─── Journal types ────────────────────────────────────────────────────────────
+export interface JournalEntry {
+  id: string;          // generated
+  projectId: string;   // which project this belongs to
+  blob: Blob;          // photo (JPEG, compressed)
+  caption: string;
+  takenAt: number;     // Date.now()
+  progress: number;    // project progress % at time of capture (0-100)
+}
 
 export interface SavedProject {
   id: string;               // uuid
@@ -43,6 +54,12 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META);
+      }
+      // v2: journal entries store
+      if (!db.objectStoreNames.contains(STORE_JOURNAL)) {
+        const js = db.createObjectStore(STORE_JOURNAL, { keyPath: 'id' });
+        js.createIndex('projectId', 'projectId');
+        js.createIndex('takenAt',   'takenAt');
       }
     };
     req.onsuccess = (e) => {
@@ -140,5 +157,51 @@ export async function setLastOpenProjectId(id: string | null): Promise<void> {
     const req = id ? store.put(id, 'lastOpenProjectId') : store.delete('lastOpenProjectId');
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
+  });
+}
+
+// ─── Journal CRUD ─────────────────────────────────────────────────────────────────
+
+export async function saveJournalEntry(entry: JournalEntry): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const store = tx(db, STORE_JOURNAL, 'readwrite');
+    const req = store.put(entry);
+    req.onsuccess = () => resolve();
+    req.onerror  = () => reject(req.error);
+  });
+}
+
+export async function loadJournalEntries(projectId: string): Promise<JournalEntry[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const store = tx(db, STORE_JOURNAL, 'readonly');
+    const idx   = store.index('projectId');
+    const req   = idx.getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => {
+      const results: JournalEntry[] = req.result ?? [];
+      resolve(results.sort((a, b) => b.takenAt - a.takenAt)); // newest first
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteJournalEntry(id: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const store = tx(db, STORE_JOURNAL, 'readwrite');
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror  = () => reject(req.error);
+  });
+}
+
+export async function countJournalEntries(projectId: string): Promise<number> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const store = tx(db, STORE_JOURNAL, 'readonly');
+    const req = store.index('projectId').count(IDBKeyRange.only(projectId));
+    req.onsuccess = () => resolve(req.result ?? 0);
+    req.onerror  = () => reject(req.error);
   });
 }

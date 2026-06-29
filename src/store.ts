@@ -21,7 +21,12 @@ import {
   deleteProject as dbDeleteProject,
   renameProject as dbRenameProject,
   getLastOpenProjectId,
+  saveJournalEntry,
+  loadJournalEntries,
+  deleteJournalEntry,
+  countJournalEntries,
   type SavedProject,
+  type JournalEntry,
 } from './lib/db';
 import { scheduleAutoSave, flushAutoSave, setCloudUser } from './lib/autoSave';
 import {
@@ -192,7 +197,15 @@ export interface StitchifyState {
   updateSection: (id: string, patch: Partial<Omit<PatternSection, 'id'>>) => void;
   deleteSection: (id: string) => void;
   jumpToSection: (id: string) => void;
+
+  // WIP Journal
+  journalEntries: JournalEntry[];
+  journalLoading: boolean;
+  loadJournal: () => Promise<void>;
+  addJournalEntry: (blob: Blob, caption: string) => Promise<'ok' | 'limit'>;
+  deleteJournalEntryById: (id: string) => Promise<void>;
 }
+export type { JournalEntry };
 
 // Minimal blank pattern — just a placeholder until a real project loads
 const defaultPattern = createDefaultPattern();
@@ -227,6 +240,8 @@ export const useStore = create<StitchifyState>((set, get) => ({
   zoom: 1,
   cellSize: PatternEngine.computeCellSize(defaultPattern.width, defaultPattern.height) as number,
   sections: [] as PatternSection[],
+  journalEntries: [],
+  journalLoading: false,
 
   doneStitches: new Uint8Array(defaultPattern.width * defaultPattern.height),
   doneVersion: 0,
@@ -680,6 +695,44 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
   deleteSection: (id) => {
     set((s) => ({ sections: s.sections.filter((sec) => sec.id !== id) }));
+  },
+
+  // ── WIP Journal ──────────────────────────────────────────────────
+  loadJournal: async () => {
+    const { activeProject } = get();
+    if (!activeProject.id) return;
+    set({ journalLoading: true });
+    const entries = await loadJournalEntries(activeProject.id);
+    set({ journalEntries: entries, journalLoading: false });
+  },
+
+  addJournalEntry: async (blob, caption) => {
+    const { activeProject, isPro, journalEntries } = get();
+    if (!activeProject.id) return 'ok';
+    const FREE_LIMIT = 3;
+    if (!isPro) {
+      // Count entries for this project
+      const count = await countJournalEntries(activeProject.id);
+      if (count >= FREE_LIMIT) return 'limit';
+    }
+    const id = `je_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const pct = activeProject.progress ?? 0;
+    const entry: JournalEntry = {
+      id,
+      projectId: activeProject.id,
+      blob,
+      caption,
+      takenAt: Date.now(),
+      progress: Math.round(pct * 100),
+    };
+    await saveJournalEntry(entry);
+    set({ journalEntries: [entry, ...journalEntries] });
+    return 'ok';
+  },
+
+  deleteJournalEntryById: async (id) => {
+    await deleteJournalEntry(id);
+    set((s) => ({ journalEntries: s.journalEntries.filter((e) => e.id !== id) }));
   },
 
   jumpToSection: (id) => {
