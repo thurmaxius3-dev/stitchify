@@ -12,6 +12,7 @@ import SettingsView from './components/subviews/SettingsView';
 import ExportView from './components/subviews/ExportView';
 import { useEffect } from 'react';
 import { fetchSharedPattern } from './lib/supabase';
+import OnboardingTour from './components/OnboardingTour';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -21,7 +22,7 @@ function ProgressFooter() {
   for (let i = 0; i < doneStitches.length; i++) done += doneStitches[i];
   const pct = total ? (done / total) * 100 : 0;
   return (
-    <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-1.5 flex items-center gap-3">
+    <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-1.5 flex items-center gap-3 app-safe-bottom">
       <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
         <div className="h-full bg-teal-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
       </div>
@@ -58,7 +59,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col overflow-hidden" style={{ height: "100dvh" }}>
       <Header />
       {activeTab === 'edit' && <EditToolbar />}
       {activeTab === 'view' && <ViewToolbar />}
@@ -69,6 +70,7 @@ export default function App() {
 
       <ProgressFooter />
       <LeftDrawer />
+      <OnboardingTour />
 
       {activeSubview === 'new-pattern' && <NewPattern />}
       {activeSubview === 'open-pattern' && <OpenPattern />}

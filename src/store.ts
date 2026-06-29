@@ -102,6 +102,8 @@ export interface StitchifyState {
   // Progress
   doneStitches: Uint8Array;
   doneVersion: number;
+  hasSeenOnboarding: boolean;
+  dismissOnboarding: () => void;
   undoStack: HistoryEntry[];
   redoStack: HistoryEntry[];
 
@@ -206,6 +208,11 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
   doneStitches: new Uint8Array(defaultPattern.width * defaultPattern.height),
   doneVersion: 0,
+  hasSeenOnboarding: localStorage.getItem('stitchify_onboarded') === '1',
+  dismissOnboarding: () => {
+    localStorage.setItem('stitchify_onboarded', '1');
+    set({ hasSeenOnboarding: true });
+  },
   undoStack: [],
   redoStack: [],
 

@@ -3,17 +3,41 @@ import { useStore } from '../store';
 import { CanvasRenderer } from '../lib/canvasRenderer';
 
 function WelcomeScreen() {
-  const openSubview = useStore((s) => s.openSubview);
+  const openSubview    = useStore((s) => s.openSubview);
+  const savedProjects  = useStore((s) => s.savedProjects);
+  const loadProject    = useStore((s) => s.loadProject);
+
+  // Most recently saved project
+  const lastProject = savedProjects.length > 0 ? savedProjects[0] : null;
+
+  function resumeLast() {
+    if (!lastProject) return;
+    loadProject(lastProject.id);
+  }
+
   return (
     <div className="flex flex-col items-center justify-center flex-1 gap-5 p-8 text-center">
       <div style={{ fontSize: '3rem' }}>🧵</div>
-      <h2 className="text-xl font-semibold text-gray-700">No pattern open</h2>
+      <h2 className="text-xl font-semibold text-gray-700">
+        {lastProject ? `Welcome back` : 'No pattern open'}
+      </h2>
       <p className="text-sm text-gray-500 max-w-xs">
-        Create a new pattern, open a saved one, or import an .em file to get started.
+        {lastProject
+          ? `Pick up where you left off, or start something new.`
+          : 'Create a new pattern, open a saved one, or import an .em file to get started.'}
       </p>
       <div className="flex flex-col gap-2 w-full max-w-xs">
+        {lastProject && (
+          <button
+            className="btn-primary flex items-center justify-center gap-2"
+            onClick={resumeLast}
+          >
+            <span>▶</span>
+            <span>Resume &ldquo;{lastProject.name}&rdquo;</span>
+          </button>
+        )}
         <button
-          className="btn-primary"
+          className={lastProject ? 'btn-secondary' : 'btn-primary'}
           onClick={() => openSubview('new-pattern')}
         >
           New pattern
@@ -22,7 +46,7 @@ function WelcomeScreen() {
           className="btn-secondary"
           onClick={() => openSubview('open-pattern')}
         >
-          Open saved
+          {lastProject ? 'All projects' : 'Open saved'}
         </button>
         <button
           className="btn-secondary"

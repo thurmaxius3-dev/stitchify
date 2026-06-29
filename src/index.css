@@ -6,6 +6,11 @@
   --accent-teal-dark: #0097a7;
   --toolbar-bg: #eceff1;
   --drawer-width: 280px;
+  /* iOS safe area insets */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 
 html,
@@ -21,6 +26,17 @@ body {
   background: #f3f4f6;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* iOS Safari: inputs smaller than 16px trigger auto-zoom on focus.
+   Force 16px on all form controls to prevent that. Visual size is
+   controlled by transform scale if needed, but zoom must not fire. */
+input, select, textarea {
+  font-size: 16px !important;
+}
+/* Override back to a sensible visual size using transform */
+input[type="range"] {
+  font-size: 1rem !important;
 }
 
 .bg-header { background: var(--header-bg); }
@@ -224,6 +240,14 @@ body {
   overflow: hidden;
   position: relative;
   background: #9ca3af;
+}
+
+/* Safe area padding for PWA on iPhone — prevents content hiding behind home bar */
+.app-safe-bottom {
+  padding-bottom: var(--sab);
+}
+.app-safe-top {
+  padding-top: var(--sat);
 }
 
 .canvas-scroll {
