@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import type { SubviewId, PatternSection } from '../lib/types';
-import { PlusIcon, ImageIcon, ImportIcon, PaletteIcon, CalculatorIcon, SettingsIcon, TrashIcon, TargetIcon, SectionIcon } from './icons';
+import { PlusIcon, ImageIcon, ImportIcon, PaletteIcon, CalculatorIcon, SettingsIcon, TrashIcon, TargetIcon, SectionIcon, SparkleIcon } from './icons';
 
 const NAV: { id: Exclude<SubviewId, null>; label: string; Icon: typeof PlusIcon }[] = [
   { id: 'new-pattern', label: 'New pattern', Icon: PlusIcon },
@@ -154,6 +154,15 @@ export default function LeftDrawer() {
         </div>
 
         <div className="border-t border-gray-200 py-2">
+          {/* Stitching Wrapped */}
+          <button
+            type="button"
+            className="w-full flex items-center gap-4 px-5 py-3 hover:bg-purple-50 text-left"
+            onClick={() => openSubview('wrapped')}
+          >
+            <SparkleIcon className="w-5 h-5 text-purple-500" />
+            <span className="text-gray-800 font-medium">Stitching Wrapped</span>
+          </button>
           <button
             type="button"
             className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-100 text-left"

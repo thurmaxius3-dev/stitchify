@@ -17,6 +17,7 @@ import UpgradeView from './components/subviews/UpgradeView';
 import { StreakView } from './components/subviews/StreakView';
 import { MilestoneToast } from './components/MilestoneToast';
 import { JournalView } from './components/subviews/JournalView';
+import { WrappedView } from './components/subviews/WrappedView';
 
 function ProgressFooter() {
   const doneStitches = useStore((s) => s.doneStitches);
@@ -86,6 +87,7 @@ export default function App() {
       {activeSubview === 'upgrade-pro' && <UpgradeView />}
       {activeSubview === 'streak-goals' && <StreakView />}
       {activeSubview === 'wip-journal' && <JournalView />}
+      {activeSubview === 'wrapped' && <WrappedView />}
       <MilestoneToast />
     </div>
   );
