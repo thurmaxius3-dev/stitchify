@@ -36,7 +36,13 @@ export async function getUser(): Promise<User | null> {
 
 export async function signUp(email: string, password: string) {
   if (!supabase) throw new Error('Supabase not configured');
-  return supabase.auth.signUp({ email, password });
+  return supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: window.location.origin,  // always redirects to whichever domain is live
+    },
+  });
 }
 
 export async function signIn(email: string, password: string) {
