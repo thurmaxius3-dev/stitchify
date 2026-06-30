@@ -154,6 +154,7 @@ export interface StitchifyState {
   // Auth + cloud
   cloudUser: User | null;
   cloudSyncEnabled: boolean;
+  cloudRestoring: boolean;  // true while initial cloud restore is in flight
 
   // Actions
   set: (patch: Partial<StitchifyState>) => void;
@@ -293,6 +294,7 @@ export const useStore = create<StitchifyState>((set, get) => ({
 
   cloudUser: null,
   cloudSyncEnabled: false,
+  cloudRestoring: false,
 
   set: (patch) => set(patch),
 
@@ -1044,22 +1046,27 @@ async function bootstrap() {
     }
   }
 
-  // Restore cloud sync preference
-  const cloudPref = localStorage.getItem('stitchify-cloud-sync') === '1';
+  // (cloud sync is now auto-enabled on sign-in — localStorage pref no longer needed)
 
   // Auth state listener
   if (supabase) {
     onAuthStateChange((user) => {
       useStore.setState({ cloudUser: user });
-      const enabled = user ? cloudPref : false;
+      // Auto-enable sync whenever a user is present (no manual toggle needed)
+      const enabled = user ? true : false;
       useStore.getState().setCloudSync(enabled);
+      if (user) {
+        // Restore cloud projects into local IDB
+        restoreFromCloud(user.id);
+      }
     });
 
-    // Check existing session
+    // Check existing session on startup
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         useStore.setState({ cloudUser: data.user });
-        useStore.getState().setCloudSync(cloudPref);
+        useStore.getState().setCloudSync(true);
+        restoreFromCloud(data.user.id);
       }
     });
   }
@@ -1073,6 +1080,43 @@ async function bootstrap() {
       }
     }
   });
+}
+
+/**
+ * Pull all cloud projects for this user and merge them into local IDB.
+ * Cloud wins if the cloud copy is newer (updatedAt comparison).
+ * Runs on every sign-in and on startup when a session already exists.
+ */
+async function restoreFromCloud(userId: string) {
+  const { fetchCloudProjects } = await import('./lib/supabase');
+  useStore.setState({ cloudRestoring: true });
+  try {
+    const cloudProjects = await fetchCloudProjects(userId);
+    if (!cloudProjects.length) return;
+
+    // Load current local state
+    const localProjects = await loadAllProjects();
+    const localMap = new Map(localProjects.map((p) => [p.id, p]));
+
+    let anyNew = false;
+    for (const cloud of cloudProjects) {
+      const local = localMap.get(cloud.id);
+      // Write to local IDB if: not present locally, OR cloud is newer
+      if (!local || cloud.updatedAt > local.updatedAt) {
+        await dbSaveProject(cloud);
+        anyNew = true;
+      }
+    }
+
+    if (anyNew) {
+      // Refresh the in-memory project list
+      await useStore.getState().refreshSavedProjects();
+    }
+  } catch (err) {
+    console.error('[Stitchify] Cloud restore failed:', err);
+  } finally {
+    useStore.setState({ cloudRestoring: false });
+  }
 }
 
 bootstrap();

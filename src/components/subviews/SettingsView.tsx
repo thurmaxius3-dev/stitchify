@@ -7,9 +7,10 @@ type AuthMode = 'none' | 'signin' | 'signup';
 
 export default function SettingsView() {
   const [keepScreenOn, setKeepScreenOn] = useState(true);
-  const cloudUser = useStore((s) => s.cloudUser);
+  const cloudUser       = useStore((s) => s.cloudUser);
   const cloudSyncEnabled = useStore((s) => s.cloudSyncEnabled);
-  const setCloudSync = useStore((s) => s.setCloudSync);
+  const cloudRestoring   = useStore((s) => s.cloudRestoring);
+  const setCloudSync     = useStore((s) => s.setCloudSync);
 
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [email, setEmail] = useState('');
@@ -92,10 +93,19 @@ export default function SettingsView() {
                 Sign out
               </button>
             </div>
+
+            {/* Restore indicator */}
+            {cloudRestoring && (
+              <div className="px-4 py-2 flex items-center gap-2 text-xs text-teal-600">
+                <div className="w-3 h-3 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin flex-shrink-0" />
+                Restoring your patterns from cloud…
+              </div>
+            )}
+
             <div className="settings-row">
               <div>
                 <div className="font-medium text-gray-800">Auto-sync to cloud</div>
-                <p>Back up patterns to your account automatically</p>
+                <p>Patterns back up automatically while you stitch</p>
               </div>
               <input
                 type="checkbox"

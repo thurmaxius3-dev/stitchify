@@ -48,25 +48,33 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
-        const store = db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
-        store.createIndex('updatedAt', 'updatedAt');
-      }
-      if (!db.objectStoreNames.contains(STORE_META)) {
-        db.createObjectStore(STORE_META);
-      }
-      // v2: journal entries store
-      if (!db.objectStoreNames.contains(STORE_JOURNAL)) {
-        const js = db.createObjectStore(STORE_JOURNAL, { keyPath: 'id' });
-        js.createIndex('projectId', 'projectId');
-        js.createIndex('takenAt',   'takenAt');
+      // Guard: never abort the upgrade — just create whatever is missing
+      try {
+        if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
+          const store = db.createObjectStore(STORE_PROJECTS, { keyPath: 'id' });
+          store.createIndex('updatedAt', 'updatedAt');
+        }
+        if (!db.objectStoreNames.contains(STORE_META)) {
+          db.createObjectStore(STORE_META);
+        }
+        // v2: journal entries store
+        if (!db.objectStoreNames.contains(STORE_JOURNAL)) {
+          const js = db.createObjectStore(STORE_JOURNAL, { keyPath: 'id' });
+          js.createIndex('projectId', 'projectId');
+          js.createIndex('takenAt',   'takenAt');
+        }
+      } catch (upgradeErr) {
+        console.error('[Stitchify] IDB upgrade error (non-fatal):', upgradeErr);
       }
     };
     req.onsuccess = (e) => {
       _db = (e.target as IDBOpenDBRequest).result;
+      // Listen for version-change events (another tab opened a newer version)
+      _db.onversionchange = () => { _db?.close(); _db = null; };
       resolve(_db);
     };
-    req.onerror = () => reject(req.error);
+    req.onerror   = () => reject(req.error);
+    req.onblocked = () => console.warn('[Stitchify] IDB open blocked — close other tabs');
   });
 }
 
