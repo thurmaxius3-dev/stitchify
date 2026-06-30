@@ -1092,26 +1092,24 @@ async function restoreFromCloud(userId: string) {
   useStore.setState({ cloudRestoring: true });
   try {
     const cloudProjects = await fetchCloudProjects(userId);
-    if (!cloudProjects.length) return;
 
-    // Load current local state
-    const localProjects = await loadAllProjects();
-    const localMap = new Map(localProjects.map((p) => [p.id, p]));
+    if (cloudProjects.length > 0) {
+      // Load current local state
+      const localProjects = await loadAllProjects();
+      const localMap = new Map(localProjects.map((p) => [p.id, p]));
 
-    let anyNew = false;
-    for (const cloud of cloudProjects) {
-      const local = localMap.get(cloud.id);
-      // Write to local IDB if: not present locally, OR cloud is newer
-      if (!local || cloud.updatedAt > local.updatedAt) {
-        await dbSaveProject(cloud);
-        anyNew = true;
+      for (const cloud of cloudProjects) {
+        const local = localMap.get(cloud.id);
+        // Write to local IDB if: not present locally, OR cloud is newer
+        if (!local || cloud.updatedAt > local.updatedAt) {
+          await dbSaveProject(cloud);
+        }
       }
     }
 
-    if (anyNew) {
-      // Refresh the in-memory project list
-      await useStore.getState().refreshSavedProjects();
-    }
+    // Always refresh the in-memory project list after restore attempt
+    // (OpenPattern listens to cloudRestoring flipping false to re-render)
+    await useStore.getState().refreshSavedProjects();
   } catch (err) {
     console.error('[Stitchify] Cloud restore failed:', err);
   } finally {

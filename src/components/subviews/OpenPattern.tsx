@@ -193,13 +193,23 @@ function ProjectRow({ p, onLoad }: { p: SavedProject; onLoad: (id: string) => vo
 }
 
 export default function OpenPattern() {
-  const savedProjects = useStore((s) => s.savedProjects);
+  const savedProjects        = useStore((s) => s.savedProjects);
   const refreshSavedProjects = useStore((s) => s.refreshSavedProjects);
-  const loadProject = useStore((s) => s.loadProject);
+  const loadProject          = useStore((s) => s.loadProject);
+  const cloudRestoring       = useStore((s) => s.cloudRestoring);
+  const cloudUser            = useStore((s) => s.cloudUser);
 
+  // Refresh from IDB on mount
   useEffect(() => {
     refreshSavedProjects();
   }, [refreshSavedProjects]);
+
+  // Re-refresh whenever cloud restore finishes
+  useEffect(() => {
+    if (!cloudRestoring) {
+      refreshSavedProjects();
+    }
+  }, [cloudRestoring]);
 
   const sorted = useMemo(
     () => [...savedProjects].sort((a, b) => b.updatedAt - a.updatedAt),
@@ -209,11 +219,33 @@ export default function OpenPattern() {
   return (
     <section className="subview">
       <SubviewHeader title="Open pattern" />
+
+      {/* Cloud restore in-progress banner */}
+      {cloudRestoring && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-teal-50 border-b border-teal-100 text-xs text-teal-700">
+          <div className="w-3 h-3 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin flex-shrink-0" />
+          Restoring your patterns from cloud…
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
-          <p className="p-8 text-center text-sm text-gray-500">
-            No saved patterns yet. Create one from the menu or import a file.
-          </p>
+          <div className="p-8 text-center">
+            <p className="text-sm text-gray-500 mb-4">
+              {cloudRestoring
+                ? 'Fetching your patterns…'
+                : 'No saved patterns yet. Create one from the menu or import a file.'}
+            </p>
+            {/* Manual refresh — safety net if auto-restore hasn\'t fired yet */}
+            {cloudUser && !cloudRestoring && (
+              <button
+                onClick={refreshSavedProjects}
+                className="text-xs text-teal-600 border border-teal-200 rounded-full px-3 py-1.5 hover:bg-teal-50"
+              >
+                Refresh from cloud
+              </button>
+            )}
+          </div>
         ) : (
           sorted.map((p) => (
             <ProjectRow key={p.id} p={p} onLoad={loadProject} />
