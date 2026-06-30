@@ -38,7 +38,7 @@ import {
   goalProgress,
   type StreakData,
 } from './lib/streaks';
-import { supabase, onAuthStateChange } from './lib/supabase';
+import { supabase, onAuthStateChange, fetchCloudProjects } from './lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 export const DMC_LIBRARY = DMC_COLORS;
@@ -67,6 +67,13 @@ function generateId(): string {
 
 /** Build a SavedProject snapshot from the current store state. */
 function buildSnapshot(s: StitchifyState): SavedProject {
+  // Count done stitches directly from the live Uint8Array — never trust
+  // activeProject.stitched which is only set at load time and goes stale.
+  const total = s.pattern.width * s.pattern.height;
+  let stitched = 0;
+  for (let i = 0; i < s.doneStitches.length; i++) stitched += s.doneStitches[i];
+  const progress = total > 0 ? stitched / total : 0;
+
   return {
     id: s.activeProject.id ?? generateId(),
     name: s.activeProject.name,
@@ -74,9 +81,9 @@ function buildSnapshot(s: StitchifyState): SavedProject {
     height: s.pattern.height,
     colorSystem: s.activeProject.colorSystem,
     colorCount: s.activeProject.colorCount,
-    progress: s.activeProject.progress ?? 0,
-    stitched: s.activeProject.stitched ?? 0,
-    total: s.activeProject.total ?? s.pattern.width * s.pattern.height,
+    progress,
+    stitched,
+    total,
     matrix: Array.from(s.pattern.matrix),
     doneMatrix: Array.from(s.doneStitches),
     activeDmcIndices: s.pattern.activeDmcIndices ?? null,
@@ -1061,12 +1068,15 @@ async function bootstrap() {
       }
     });
 
-    // Check existing session on startup
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        useStore.setState({ cloudUser: data.user });
+    // Check existing session on startup.
+    // Use getSession() (reads from localStorage synchronously) rather than
+    // getUser() (makes a network round-trip) so auth is ready before restore.
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (user) {
+        useStore.setState({ cloudUser: user });
         useStore.getState().setCloudSync(true);
-        restoreFromCloud(data.user.id);
+        restoreFromCloud(user.id);
       }
     });
   }
@@ -1088,7 +1098,6 @@ async function bootstrap() {
  * Runs on every sign-in and on startup when a session already exists.
  */
 async function restoreFromCloud(userId: string) {
-  const { fetchCloudProjects } = await import('./lib/supabase');
   useStore.setState({ cloudRestoring: true });
   try {
     const cloudProjects = await fetchCloudProjects(userId);
