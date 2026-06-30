@@ -68,10 +68,10 @@ export class CanvasRenderer {
 
     // Unified pointer events — work identically on mouse, touch, and stylus.
     // No synthetic click events, no ghost taps, no split logic needed.
-    this.on(this.canvas, 'pointerdown', (e) => this.onPointerDown(e));
-    this.on(window, 'pointermove', (e) => this.onPointerMove(e));
-    this.on(window, 'pointerup', (e) => this.onPointerUp(e));
-    this.on(window, 'pointercancel', (e) => this.onPointerUp(e));
+    this.on(this.canvas, 'pointerdown', (e) => this.onPointerDown(e), { passive: false });
+    this.on(window, 'pointermove',  (e) => this.onPointerMove(e),  { passive: false });
+    this.on(window, 'pointerup',    (e) => this.onPointerUp(e),    { passive: false });
+    this.on(window, 'pointercancel',(e) => this.onPointerUp(e),    { passive: false });
     // Pinch-to-zoom via touch events (pointer events don't expose two-finger gestures)
     this.on(this.canvas, 'touchstart', (e) => this.onPinchStart(e), { passive: true });
     this.on(this.canvas, 'touchmove', (e) => this.onPinchMove(e), { passive: false });
@@ -210,6 +210,11 @@ export class CanvasRenderer {
 
   onPointerMove(e) {
     if (e.pointerId !== this.activePointerId) return;
+
+    // Prevent scroll while painting or panning on touch devices
+    if (e.pointerType === 'touch' && (this.isPainting || this.isPanning || this.activePointerId !== null)) {
+      e.preventDefault();
+    }
 
     const dx = e.clientX - this.lastPan.x;
     const dy = e.clientY - this.lastPan.y;

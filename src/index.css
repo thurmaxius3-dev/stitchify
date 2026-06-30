@@ -332,6 +332,9 @@ input[type="range"] {
   top: 0;
   left: 0;
   z-index: 1;
+  /* Prevent browser scroll/zoom from hijacking touch events on canvas.
+     Without this, a touch drag tries to scroll the page instead of paint. */
+  touch-action: none;
 }
 
 /* Section rubber-band overlay */
