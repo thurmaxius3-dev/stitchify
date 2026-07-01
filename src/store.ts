@@ -1083,19 +1083,69 @@ async function bootstrap() {
 
   // Flush save on page hide
   window.addEventListener('visibilitychange', () => {
+    const s = useStore.getState();
     if (document.visibilityState === 'hidden') {
-      const s = useStore.getState();
+      // Flush unsaved work to cloud immediately when leaving the app
       if (s.activeProject.id) {
         flushAutoSave(buildSnapshot(s));
       }
+    } else if (document.visibilityState === 'visible') {
+      // App foregrounded (phone unlock, tab switch) — pull latest from cloud
+      const user = s.cloudUser;
+      if (user && s.cloudSyncEnabled) {
+        syncFromCloud(user.id);
+      }
+    }
+  });
+
+  // Also sync on window focus (desktop tab switching)
+  window.addEventListener('focus', () => {
+    const s = useStore.getState();
+    if (s.cloudUser && s.cloudSyncEnabled) {
+      syncFromCloud(s.cloudUser.id);
     }
   });
 }
 
 /**
- * Pull all cloud projects for this user and merge them into local IDB.
- * Cloud wins if the cloud copy is newer (updatedAt comparison).
- * Runs on every sign-in and on startup when a session already exists.
+ * Lightweight foreground sync — runs when the app is foregrounded or focused.
+ * Does NOT set cloudRestoring (no spinner) to keep it seamless.
+ * If the currently open project has a newer version in cloud, hot-reloads it.
+ */
+async function syncFromCloud(userId: string) {
+  try {
+    const cloudProjects = await fetchCloudProjects(userId);
+    if (!cloudProjects.length) return;
+
+    const localProjects = await loadAllProjects();
+    const localMap = new Map(localProjects.map((p) => [p.id, p]));
+
+    let anyUpdated = false;
+    for (const cloud of cloudProjects) {
+      const local = localMap.get(cloud.id);
+      if (!local || cloud.updatedAt > local.updatedAt) {
+        await dbSaveProject(cloud);
+        anyUpdated = true;
+
+        // If this is the currently open project, hot-reload it in memory
+        const activeId = useStore.getState().activeProject.id;
+        if (activeId === cloud.id) {
+          useStore.getState().loadProject(cloud.id);
+        }
+      }
+    }
+
+    if (anyUpdated) {
+      await useStore.getState().refreshSavedProjects();
+    }
+  } catch (err) {
+    console.error('[Stitchify] Background sync failed:', err);
+  }
+}
+
+/**
+ * Full restore — runs on sign-in and cold startup. Shows cloudRestoring spinner.
+ * Writes all cloud projects to local IDB so they appear in Open Pattern.
  */
 async function restoreFromCloud(userId: string) {
   useStore.setState({ cloudRestoring: true });
