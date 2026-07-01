@@ -39,6 +39,11 @@ import {
   type StreakData,
 } from './lib/streaks';
 import { supabase, onAuthStateChange, fetchCloudProjects } from './lib/supabase';
+import {
+  claimLock, releaseLock, renewLock, takeOverLock,
+  getDeviceId, RENEW_INTERVAL_MS,
+  type ProjectLock,
+} from './lib/projectLock';
 import type { User } from '@supabase/supabase-js';
 
 export const DMC_LIBRARY = DMC_COLORS;
@@ -162,6 +167,13 @@ export interface StitchifyState {
   cloudUser: User | null;
   cloudSyncEnabled: boolean;
   cloudRestoring: boolean;  // true while initial cloud restore is in flight
+
+  // Presence lock
+  lockStatus: 'unlocked' | 'owner' | 'readonly' | 'checking';
+  lockHolder: ProjectLock | null;   // set when lockStatus === 'readonly'
+  acquireLock: () => Promise<void>;
+  releaseActiveLock: () => Promise<void>;
+  takeOverActiveLock: () => Promise<void>;
 
   // Actions
   set: (patch: Partial<StitchifyState>) => void;
@@ -302,6 +314,45 @@ export const useStore = create<StitchifyState>((set, get) => ({
   cloudUser: null,
   cloudSyncEnabled: false,
   cloudRestoring: false,
+
+  // Presence lock
+  lockStatus: 'unlocked',
+  lockHolder: null,
+
+  acquireLock: async () => {
+    const { activeProject, cloudUser } = get();
+    if (!activeProject.id || !cloudUser) return;
+    set({ lockStatus: 'checking' });
+    const result = await claimLock(activeProject.id, cloudUser.id);
+    if (result === 'claimed' || result === 'error') {
+      // error = fail open (allow editing)
+      set({ lockStatus: 'owner', lockHolder: null });
+      startLockRenewal(activeProject.id, cloudUser.id);
+    } else {
+      // 'taken' — fetch who holds it for the banner
+      const { fetchLock } = await import('./lib/projectLock');
+      const holder = await fetchLock(activeProject.id);
+      set({ lockStatus: 'readonly', lockHolder: holder });
+    }
+  },
+
+  releaseActiveLock: async () => {
+    const { activeProject, cloudUser, lockStatus } = get();
+    if (!activeProject.id || !cloudUser || lockStatus !== 'owner') return;
+    stopLockRenewal();
+    await releaseLock(activeProject.id, cloudUser.id);
+    set({ lockStatus: 'unlocked', lockHolder: null });
+  },
+
+  takeOverActiveLock: async () => {
+    const { activeProject, cloudUser } = get();
+    if (!activeProject.id || !cloudUser) return;
+    const ok = await takeOverLock(activeProject.id, cloudUser.id);
+    if (ok) {
+      set({ lockStatus: 'owner', lockHolder: null });
+      startLockRenewal(activeProject.id, cloudUser.id);
+    }
+  },
 
   set: (patch) => set(patch),
 
@@ -608,6 +659,13 @@ export const useStore = create<StitchifyState>((set, get) => ({
     const { savedProjects } = get();
     const project = savedProjects.find((p) => p.id === projectId);
     if (!project) return;
+
+    // Release lock on any previously open project
+    const prev = get().activeProject;
+    if (prev.id && prev.id !== projectId) {
+      get().releaseActiveLock();
+    }
+
     const matrix = new Uint16Array(project.matrix);
     const pattern: Pattern = {
       width: project.width,
@@ -625,6 +683,9 @@ export const useStore = create<StitchifyState>((set, get) => ({
       stitched: project.stitched,
       total: project.total,
     });
+
+    // Claim the presence lock (non-blocking)
+    get().acquireLock();
   },
 
   deleteProject: async (projectId) => {
@@ -1002,6 +1063,9 @@ function applyDone(
   y: number,
   done: boolean
 ): void {
+  // Block all painting when this device is in read-only lock mode
+  if (get().lockStatus === 'readonly') return;
+
   const { pattern, doneStitches, undoStack } = get();
   const { width, height } = pattern;
   if (x < 0 || x >= width || y < 0 || y >= height) return;
@@ -1038,6 +1102,23 @@ export function visibleProjects(s: StitchifyState): SavedProject[] {
 
 // ─── Bootstrap: load saved projects + auth on startup ────────────────────────
 
+// ─── Lock renewal timer ──────────────────────────────────────────────────────
+let _lockRenewalTimer: ReturnType<typeof setInterval> | null = null;
+
+function startLockRenewal(projectId: string, userId: string) {
+  stopLockRenewal();
+  _lockRenewalTimer = setInterval(() => {
+    renewLock(projectId, userId);
+  }, RENEW_INTERVAL_MS);
+}
+
+function stopLockRenewal() {
+  if (_lockRenewalTimer) {
+    clearInterval(_lockRenewalTimer);
+    _lockRenewalTimer = null;
+  }
+}
+
 async function bootstrap() {
   const store = useStore.getState();
 
@@ -1058,12 +1139,19 @@ async function bootstrap() {
   // Auth state listener
   if (supabase) {
     onAuthStateChange((user) => {
+      const prev = useStore.getState();
+      // Release lock if signing out
+      if (!user && prev.cloudUser) {
+        stopLockRenewal();
+        if (prev.activeProject.id) {
+          releaseLock(prev.activeProject.id, prev.cloudUser.id);
+        }
+        useStore.setState({ lockStatus: 'unlocked', lockHolder: null });
+      }
       useStore.setState({ cloudUser: user });
-      // Auto-enable sync whenever a user is present (no manual toggle needed)
       const enabled = user ? true : false;
       useStore.getState().setCloudSync(enabled);
       if (user) {
-        // Restore cloud projects into local IDB
         restoreFromCloud(user.id);
       }
     });
@@ -1089,11 +1177,17 @@ async function bootstrap() {
       if (s.activeProject.id) {
         flushAutoSave(buildSnapshot(s));
       }
+      // Release the presence lock — this device is no longer active
+      s.releaseActiveLock();
     } else if (document.visibilityState === 'visible') {
       // App foregrounded (phone unlock, tab switch) — pull latest from cloud
       const user = s.cloudUser;
       if (user && s.cloudSyncEnabled) {
         syncFromCloud(user.id);
+      }
+      // Re-acquire the lock if we had a project open
+      if (s.activeProject.id && s.cloudUser) {
+        s.acquireLock();
       }
     }
   });
