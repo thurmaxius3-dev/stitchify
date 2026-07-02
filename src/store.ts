@@ -41,7 +41,7 @@ import {
 import { supabase, onAuthStateChange, fetchCloudProjects } from './lib/supabase';
 import {
   claimLock, releaseLock, renewLock, takeOverLock,
-  getDeviceId, RENEW_INTERVAL_MS,
+  RENEW_INTERVAL_MS,
   type ProjectLock,
 } from './lib/projectLock';
 import type { User } from '@supabase/supabase-js';
